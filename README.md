@@ -14,7 +14,7 @@ Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust
 
 ```bash
 # With Nix
-nix run github:gudnuf/njalla-cli
+nix run github:orveth/njalla-cli
 
 # From source
 cargo build --release
