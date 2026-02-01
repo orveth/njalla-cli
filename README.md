@@ -42,6 +42,16 @@ njalla search example   # Search available domains
 njalla wallet balance   # Check wallet balance
 ```
 
+## Development
+
+This project uses Nix for reproducible builds. Install [Nix](https://determinate.systems/nix-installer/) and [direnv](https://direnv.net/), then:
+
+```bash
+direnv allow   # Auto-enters dev environment
+cargo test     # Run tests
+cargo build    # Build
+```
+
 ## License
 
 MIT
