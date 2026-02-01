@@ -4,7 +4,6 @@ use thiserror::Error;
 
 /// All errors that can occur in njalla-cli.
 #[derive(Error, Debug)]
-#[allow(dead_code)]
 pub enum NjallaError {
     /// API token not found.
     #[error("No API token found. Set NJALLA_API_TOKEN or add api_token to ./config.toml")]
@@ -23,10 +22,12 @@ pub enum NjallaError {
 
     /// Domain is not available for registration.
     #[error("Domain not available: {0}")]
+    #[allow(dead_code)]
     DomainNotAvailable(String),
 
     /// Registration timed out waiting for completion.
     #[error("Registration timeout for {domain} after {timeout_secs}s")]
+    #[allow(dead_code)]
     RegistrationTimeout {
         /// Domain being registered.
         domain: String,

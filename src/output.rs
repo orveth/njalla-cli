@@ -1,7 +1,7 @@
 //! Output formatting for CLI commands.
 
 use crate::error::Result;
-use crate::types::{Domain, MarketDomain, Record, ValidationResult};
+use crate::types::{Domain, MarketDomain, Payment, Record, Transaction, ValidationResult, WalletBalance};
 use colored::Colorize;
 
 /// Output format.
@@ -237,6 +237,132 @@ pub fn format_validation(result: &ValidationResult, format: OutputFormat) -> Res
     }
 }
 
+/// Format wallet balance.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+pub fn format_wallet_balance(balance: &WalletBalance, format: OutputFormat) -> Result<String> {
+    match format {
+        OutputFormat::Json => Ok(serde_json::to_string_pretty(balance)?),
+        OutputFormat::Table => {
+            let balance_str = format!("{}{}",  "€".bold(), balance.balance.to_string().green().bold());
+            Ok(format!("{}: {}\n", "Wallet Balance".bold(), balance_str))
+        }
+    }
+}
+
+/// Format payment information.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string)]
+pub fn format_payment(payment: &Payment, format: OutputFormat) -> Result<String> {
+    match format {
+        OutputFormat::Json => Ok(serde_json::to_string_pretty(payment)?),
+        OutputFormat::Table => {
+            let mut output = String::new();
+
+            output.push_str(&format!("{}\n", "Payment Details".bold()));
+            output.push_str(&format!("{}\n", "-".repeat(40)));
+
+            if let Some(ref id) = payment.id {
+                output.push_str(&format!("{}: {}\n", "ID".bold(), id));
+            }
+
+            // Show amount with currency, and BTC amount if available
+            let currency = payment.currency.as_deref().unwrap_or("EUR");
+            let currency_symbol = if currency == "EUR" { "€" } else { currency };
+            output.push_str(&format!("{}: {}{}\n", "Amount".bold(), currency_symbol, payment.amount));
+
+            if let Some(ref amount_btc) = payment.amount_btc {
+                output.push_str(&format!("{}: {} BTC\n", "Amount (BTC)".bold(), amount_btc.cyan()));
+            }
+
+            if let Some(ref status) = payment.status {
+                let status_colored = if status.contains("Waiting") || status.contains("pending") {
+                    status.yellow().to_string()
+                } else if status.contains("completed") || status.contains("paid") || status.contains("confirmed") {
+                    status.green().to_string()
+                } else {
+                    status.clone()
+                };
+                output.push_str(&format!("{}: {}\n", "Status".bold(), status_colored));
+            }
+
+            if let Some(ref address) = payment.address {
+                output.push_str(&format!("{}: {}\n", "Address".bold(), address.cyan()));
+            }
+
+            if let Some(ref uri) = payment.uri {
+                output.push_str(&format!("{}: {}\n", "URI".bold(), uri.cyan()));
+            }
+
+            if let Some(ref url) = payment.url {
+                output.push_str(&format!("{}: {}\n", "URL".bold(), url.cyan()));
+            }
+
+            Ok(output)
+        }
+    }
+}
+
+/// Format a list of transactions.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string)]
+pub fn format_transactions(transactions: &[Transaction], format: OutputFormat) -> Result<String> {
+    match format {
+        OutputFormat::Json => Ok(serde_json::to_string_pretty(transactions)?),
+        OutputFormat::Table => {
+            if transactions.is_empty() {
+                return Ok("No transactions found\n".to_string());
+            }
+
+            let mut output = String::new();
+            output.push_str(&format!(
+                "{:<12} {:<10} {:<14} {:<45} {}\n",
+                "DATE".bold(),
+                "AMOUNT".bold(),
+                "BTC".bold(),
+                "ADDRESS".bold(),
+                "STATUS".bold()
+            ));
+            output.push_str(&"-".repeat(120));
+            output.push('\n');
+
+            for t in transactions {
+                let date = t.completed.as_deref().unwrap_or("pending");
+
+                // Pad before coloring to avoid ANSI codes breaking alignment
+                let amount_raw = format!("€{}", t.amount);
+                let amount_padded = format!("{:<10}", amount_raw);
+                let amount_str = if t.completed.is_some() {
+                    amount_padded.green().to_string()
+                } else {
+                    amount_padded.yellow().to_string()
+                };
+
+                let btc_amount = t.amount_btc.as_deref().unwrap_or("-");
+                let address = t.address.as_deref().unwrap_or("-");
+
+                output.push_str(&format!(
+                    "{:<12} {} {:<14} {:<45} {}\n",
+                    date, amount_str, btc_amount, address, t.status
+                ));
+            }
+
+            output.push('\n');
+            output.push_str(&format!("{} transactions\n", transactions.len()));
+
+            Ok(output)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,5 +385,126 @@ mod tests {
     fn format_empty_domains_json() {
         let result = format_domains(&[], OutputFormat::Json).unwrap();
         assert_eq!(result, "[]");
+    }
+
+    #[test]
+    fn format_wallet_balance_table() {
+        let balance = WalletBalance { balance: 150 };
+        let result = format_wallet_balance(&balance, OutputFormat::Table).unwrap();
+        assert!(result.contains("150"));
+        assert!(result.contains("Wallet Balance"));
+    }
+
+    #[test]
+    fn format_wallet_balance_json() {
+        let balance = WalletBalance { balance: 150 };
+        let result = format_wallet_balance(&balance, OutputFormat::Json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["balance"], 150);
+    }
+
+    #[test]
+    fn format_payment_table() {
+        let payment = Payment {
+            id: Some("pay123".to_string()),
+            amount: 30,
+            currency: Some("EUR".to_string()),
+            amount_btc: Some("0.0005128".to_string()),
+            status: Some("Waiting for transaction of 30 € via Bitcoin to be confirmed".to_string()),
+            address: Some("bc1qtest".to_string()),
+            uri: Some("bitcoin:bc1qtest?amount=0.0005128".to_string()),
+            url: None,
+        };
+        let result = format_payment(&payment, OutputFormat::Table).unwrap();
+        assert!(result.contains("pay123"));
+        assert!(result.contains("30"));
+        assert!(result.contains("Waiting"));
+        assert!(result.contains("bc1qtest"));
+        assert!(result.contains("0.0005128"));
+        assert!(result.contains("Amount (BTC)"));
+    }
+
+    #[test]
+    fn format_payment_json() {
+        let payment = Payment {
+            id: Some("pay123".to_string()),
+            amount: 30,
+            currency: Some("EUR".to_string()),
+            amount_btc: Some("0.0005128".to_string()),
+            status: Some("Waiting for transaction".to_string()),
+            address: Some("bc1qtest".to_string()),
+            uri: Some("bitcoin:bc1qtest?amount=0.0005128".to_string()),
+            url: None,
+        };
+        let result = format_payment(&payment, OutputFormat::Json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["id"], "pay123");
+        assert_eq!(parsed["amount"], 30);
+        assert_eq!(parsed["currency"], "EUR");
+        assert_eq!(parsed["amount_btc"], "0.0005128");
+        assert_eq!(parsed["address"], "bc1qtest");
+        assert_eq!(parsed["uri"], "bitcoin:bc1qtest?amount=0.0005128");
+    }
+
+    #[test]
+    fn format_transactions_empty() {
+        let result = format_transactions(&[], OutputFormat::Table).unwrap();
+        assert!(result.contains("No transactions found"));
+    }
+
+    #[test]
+    fn format_transactions_table() {
+        let transactions = vec![
+            Transaction {
+                id: "tx1".to_string(),
+                amount: 210,
+                status: "Added 210 € via Bitcoin".to_string(),
+                completed: Some("2026-02-01".to_string()),
+                pdf: Some("https://njal.la/invoice/tx1/".to_string()),
+                uri: None,
+                address: None,
+                currency: None,
+                amount_btc: None,
+            },
+            Transaction {
+                id: "tx2".to_string(),
+                amount: 15,
+                status: "Waiting for transaction".to_string(),
+                completed: None,
+                pdf: None,
+                uri: Some("bitcoin:bc1qtest".to_string()),
+                address: Some("bc1qtest".to_string()),
+                currency: Some("EUR".to_string()),
+                amount_btc: Some("0.0002539".to_string()),
+            },
+        ];
+        let result = format_transactions(&transactions, OutputFormat::Table).unwrap();
+        assert!(result.contains("Added 210"));
+        assert!(result.contains("Waiting for"));
+        assert!(result.contains("2 transactions"));
+        // Check new columns
+        assert!(result.contains("BTC"));
+        assert!(result.contains("ADDRESS"));
+        assert!(result.contains("bc1qtest"));
+        assert!(result.contains("0.0002539"));
+    }
+
+    #[test]
+    fn format_transactions_json() {
+        let transactions = vec![Transaction {
+            id: "tx1".to_string(),
+            amount: 50,
+            status: "Added 50 € via Bitcoin".to_string(),
+            completed: Some("2026-01-15".to_string()),
+            pdf: None,
+            uri: None,
+            address: None,
+            currency: None,
+            amount_btc: None,
+        }];
+        let result = format_transactions(&transactions, OutputFormat::Json).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.is_array());
+        assert_eq!(parsed[0]["id"], "tx1");
     }
 }

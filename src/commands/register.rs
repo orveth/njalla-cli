@@ -13,6 +13,7 @@ pub async fn run(
     _wait: bool,
     _timeout: u64,
     _output: &str,
+    _debug: bool,
 ) -> Result<()> {
     // TODO: Implement in Phase 4
     Err(NjallaError::NotImplemented("register".to_string()))

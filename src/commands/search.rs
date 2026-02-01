@@ -7,8 +7,8 @@ use crate::output::{format_market_domains, OutputFormat};
 /// Run the search command.
 ///
 /// Searches for available domains matching the query.
-pub async fn run(query: &str, output: &str) -> Result<()> {
-    let client = NjallaClient::new()?;
+pub async fn run(query: &str, output: &str, debug: bool) -> Result<()> {
+    let client = NjallaClient::new(debug)?;
     let format: OutputFormat = output.parse().expect("infallible");
 
     let results = client.find_domains(query).await?;

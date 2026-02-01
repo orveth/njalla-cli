@@ -13,11 +13,43 @@ use colored::Colorize;
 /// Privacy-first domain management CLI for Njalla.
 #[derive(Parser)]
 #[command(name = "njalla")]
-#[command(author, version, about, long_about = None)]
+#[command(author, version, about)]
+#[command(long_about = "Privacy-first domain management CLI for Njalla.\n\n\
+Manage your domains, DNS records, and wallet from the command line.")]
+#[command(after_help = "\
+CONFIGURATION:
+    Get your API token from https://njal.la/settings/api/
+
+    Option 1: Config file (recommended)
+        njalla config --init    # Creates ./config.toml
+        Edit the file to add your token
+
+    Option 2: Environment variable
+        export NJALLA_API_TOKEN=\"your-token\"
+
+    Environment variable takes precedence over config file.
+
+EXAMPLES:
+    njalla domains                      List all your domains
+    njalla domains -o json              Output as JSON for scripting
+    njalla search bitcoin               Search for available domains
+    njalla register example.com         Register a domain (interactive)
+    njalla register example.com --wait  Register and wait for completion
+    njalla status example.com --dns     Show domain status with DNS records
+    njalla wallet balance               Check wallet balance
+    njalla wallet add-payment -a 15 -v btc   Add funds via Bitcoin
+
+MORE INFO:
+    https://github.com/gudnuf/njalla-cli
+    https://njal.la/api/")]
 struct Cli {
     /// Output format: table or json.
     #[arg(short, long, default_value = "table", global = true)]
     output: String,
+
+    /// Enable debug mode to see raw API responses.
+    #[arg(long, global = true)]
+    debug: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -83,6 +115,38 @@ enum Commands {
         #[arg(long)]
         init: bool,
     },
+
+    /// Manage wallet and payments.
+    Wallet {
+        #[command(subcommand)]
+        command: WalletCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum WalletCommands {
+    /// Show current wallet balance.
+    Balance,
+
+    /// Add payment to refill wallet.
+    AddPayment {
+        /// Amount in EUR (5 or multiple of 15, max 300).
+        #[arg(short, long)]
+        amount: i32,
+
+        /// Payment method.
+        #[arg(short, long, value_enum)]
+        via: types::PaymentMethod,
+    },
+
+    /// Get details about a payment.
+    GetPayment {
+        /// Payment ID.
+        id: String,
+    },
+
+    /// List transactions from the last 90 days.
+    Transactions,
 }
 
 #[tokio::main]
@@ -98,10 +162,10 @@ async fn run() -> error::Result<()> {
 
     match cli.command {
         Commands::Domains => {
-            commands::domains::run(&cli.output).await
+            commands::domains::run(&cli.output, cli.debug).await
         }
         Commands::Search { query } => {
-            commands::search::run(&query, &cli.output).await
+            commands::search::run(&query, &cli.output, cli.debug).await
         }
         Commands::Register {
             domain,
@@ -110,16 +174,32 @@ async fn run() -> error::Result<()> {
             wait,
             timeout,
         } => {
-            commands::register::run(&domain, years, confirm, wait, timeout, &cli.output).await
+            commands::register::run(&domain, years, confirm, wait, timeout, &cli.output, cli.debug).await
         }
         Commands::Status { domain, dns } => {
-            commands::status::run(&domain, dns, &cli.output).await
+            commands::status::run(&domain, dns, &cli.output, cli.debug).await
         }
         Commands::Validate { domain } => {
-            commands::validate::run(&domain, &cli.output).await
+            commands::validate::run(&domain, &cli.output, cli.debug).await
         }
         Commands::Config { init } => {
             run_config(init)
+        }
+        Commands::Wallet { command } => {
+            match command {
+                WalletCommands::Balance => {
+                    commands::wallet::run_balance(&cli.output, cli.debug).await
+                }
+                WalletCommands::AddPayment { amount, via } => {
+                    commands::wallet::run_add_payment(amount, via, &cli.output, cli.debug).await
+                }
+                WalletCommands::GetPayment { id } => {
+                    commands::wallet::run_get_payment(&id, &cli.output, cli.debug).await
+                }
+                WalletCommands::Transactions => {
+                    commands::wallet::run_transactions(&cli.output, cli.debug).await
+                }
+            }
         }
     }
 }

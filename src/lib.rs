@@ -9,7 +9,7 @@
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let client = NjallaClient::new()?;
+//!     let client = NjallaClient::new(false)?;  // false = no debug output
 //!     let domains = client.list_domains().await?;
 //!     println!("Found {} domains", domains.len());
 //!     Ok(())

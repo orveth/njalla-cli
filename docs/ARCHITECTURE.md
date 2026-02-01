@@ -94,9 +94,13 @@ fn main() {
 
 ## Configuration
 
-Environment variables only (no config file):
-- `NJALLA_API_TOKEN` - Required API token
-- `NJALLA_TIMEOUT` - Optional request timeout (future)
+Config file (`./config.toml`) or environment variable:
+- `NJALLA_API_TOKEN` - API token (env var takes precedence)
+
+```toml
+# config.toml
+api_token = "your-token-here"
+```
 
 ## Testing
 
@@ -158,8 +162,7 @@ rustPlatform.buildRustPackage {
 
 ## Future Considerations
 
-1. **Config file** - TOML config as alternative to env vars
-2. **Multiple accounts** - Support named profiles
-3. **Completion** - Generate shell completions
-4. **DNS templates** - Apply common DNS patterns
-5. **Webhook support** - Notifications on domain events
+1. **Multiple accounts** - Support named profiles
+2. **Shell completions** - Generate bash/zsh/fish completions
+3. **DNS templates** - Apply common DNS patterns
+4. **Webhook support** - Notifications on domain events

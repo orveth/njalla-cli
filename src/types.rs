@@ -125,6 +125,111 @@ pub struct ApiError {
 }
 
 // ============================================================================
+// Wallet Types
+// ============================================================================
+
+/// Wallet balance information.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WalletBalance {
+    /// Current balance in euros.
+    pub balance: i32,
+}
+
+/// Payment information from `add-payment` or `get-payment`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Payment {
+    /// Payment ID.
+    #[serde(default)]
+    pub id: Option<String>,
+
+    /// Payment amount in euros.
+    pub amount: i32,
+
+    /// Currency (e.g., "EUR").
+    #[serde(default)]
+    pub currency: Option<String>,
+
+    /// Amount in BTC (for Bitcoin payments).
+    #[serde(default)]
+    pub amount_btc: Option<String>,
+
+    /// Payment status (for get-payment).
+    #[serde(default)]
+    pub status: Option<String>,
+
+    /// Payment address (for crypto payments).
+    #[serde(default)]
+    pub address: Option<String>,
+
+    /// Bitcoin URI for payment (e.g., "bitcoin:address?amount=X").
+    #[serde(default)]
+    pub uri: Option<String>,
+
+    /// Payment URL (if provided by the API).
+    #[serde(default)]
+    pub url: Option<String>,
+}
+
+/// A wallet transaction.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Transaction {
+    /// Transaction ID.
+    pub id: String,
+
+    /// Transaction amount in euros.
+    pub amount: i32,
+
+    /// Transaction status/description.
+    pub status: String,
+
+    /// Completion date (for completed transactions).
+    #[serde(default)]
+    pub completed: Option<String>,
+
+    /// Invoice PDF URL (for completed transactions).
+    #[serde(default)]
+    pub pdf: Option<String>,
+
+    /// Bitcoin URI (for pending payments).
+    #[serde(default)]
+    pub uri: Option<String>,
+
+    /// Payment address (for pending crypto payments).
+    #[serde(default)]
+    pub address: Option<String>,
+
+    /// Currency code (for pending payments).
+    #[serde(default)]
+    pub currency: Option<String>,
+
+    /// Amount in BTC (for Bitcoin payments).
+    #[serde(default)]
+    pub amount_btc: Option<String>,
+}
+
+/// Response for `list-transactions`.
+#[derive(Debug, Deserialize)]
+pub struct TransactionsResult {
+    /// List of transactions.
+    pub transactions: Vec<Transaction>,
+}
+
+/// Payment method for wallet top-up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub enum PaymentMethod {
+    #[value(alias = "btc")]
+    Bitcoin,
+}
+
+impl std::fmt::Display for PaymentMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Bitcoin => write!(f, "bitcoin"),
+        }
+    }
+}
+
+// ============================================================================
 // Response Result Types
 // ============================================================================
 
@@ -267,5 +372,74 @@ mod tests {
 
         let json = serde_json::to_string(&req).unwrap();
         assert!(json.contains("list-domains"));
+    }
+
+    #[test]
+    fn payment_method_display() {
+        assert_eq!(PaymentMethod::Bitcoin.to_string(), "bitcoin");
+    }
+
+    #[test]
+    fn deserialize_wallet_balance() {
+        let json = r#"{"balance": 100}"#;
+        let balance: WalletBalance = serde_json::from_str(json).unwrap();
+        assert_eq!(balance.balance, 100);
+    }
+
+    #[test]
+    fn deserialize_payment() {
+        let json = r#"{
+            "id": "pay123",
+            "amount": 15,
+            "currency": "EUR",
+            "amount_btc": "0.0002564",
+            "status": "Waiting for transaction of 15 € via Bitcoin to be confirmed",
+            "address": "bc1qtest",
+            "uri": "bitcoin:bc1qtest?amount=0.0002564"
+        }"#;
+        let payment: Payment = serde_json::from_str(json).unwrap();
+        assert_eq!(payment.id, Some("pay123".to_string()));
+        assert_eq!(payment.amount, 15);
+        assert_eq!(payment.currency, Some("EUR".to_string()));
+        assert_eq!(payment.amount_btc, Some("0.0002564".to_string()));
+        assert_eq!(payment.status, Some("Waiting for transaction of 15 € via Bitcoin to be confirmed".to_string()));
+        assert_eq!(payment.address, Some("bc1qtest".to_string()));
+        assert_eq!(payment.uri, Some("bitcoin:bc1qtest?amount=0.0002564".to_string()));
+        assert!(payment.url.is_none());
+    }
+
+    #[test]
+    fn deserialize_transaction_completed() {
+        let json = r#"{
+            "id": "IKSELBVIY5JW4UAER7PGLFEPSGHOJNB7",
+            "amount": 210,
+            "status": "Added 210 € via Bitcoin",
+            "completed": "2026-02-01",
+            "pdf": "https://njal.la/invoice/IKSELBVIY5JW4UAER7PGLFEPSGHOJNB7/"
+        }"#;
+        let tx: Transaction = serde_json::from_str(json).unwrap();
+        assert_eq!(tx.id, "IKSELBVIY5JW4UAER7PGLFEPSGHOJNB7");
+        assert_eq!(tx.amount, 210);
+        assert_eq!(tx.status, "Added 210 € via Bitcoin");
+        assert_eq!(tx.completed, Some("2026-02-01".to_string()));
+        assert!(tx.pdf.is_some());
+    }
+
+    #[test]
+    fn deserialize_transaction_pending() {
+        let json = r#"{
+            "id": "4S4IQTHCP3URAUMYUXCY4UTUGU666CVK",
+            "amount": 15,
+            "status": "Waiting for transaction of 15 € via Bitcoin to be confirmed",
+            "uri": "bitcoin:bc1qtest?amount=0.0002539",
+            "address": "bc1qtest",
+            "currency": "EUR",
+            "amount_btc": "0.0002539"
+        }"#;
+        let tx: Transaction = serde_json::from_str(json).unwrap();
+        assert_eq!(tx.id, "4S4IQTHCP3URAUMYUXCY4UTUGU666CVK");
+        assert_eq!(tx.amount, 15);
+        assert!(tx.uri.is_some());
+        assert!(tx.completed.is_none());
     }
 }

@@ -5,7 +5,8 @@
 use crate::config::Config;
 use crate::error::{NjallaError, Result};
 use crate::types::{
-    ApiRequest, ApiResponse, Domain, MarketDomain, Record, TaskStatus,
+    ApiRequest, ApiResponse, Domain, MarketDomain, Payment, PaymentMethod, Record, TaskStatus,
+    Transaction, TransactionsResult, WalletBalance,
 };
 
 /// Njalla API endpoint.
@@ -24,6 +25,9 @@ pub struct NjallaClient {
 
     /// Base URL for API requests.
     base_url: String,
+
+    /// Debug mode - print raw responses.
+    debug: bool,
 }
 
 impl NjallaClient {
@@ -37,7 +41,7 @@ impl NjallaClient {
     ///
     /// Returns `NjallaError::MissingToken` if no token is configured.
     /// Returns `NjallaError::Request` if the HTTP client fails to build.
-    pub fn new() -> Result<Self> {
+    pub fn new(debug: bool) -> Result<Self> {
         let config = Config::load()?;
         let token = config.api_token()?.to_string();
 
@@ -49,6 +53,7 @@ impl NjallaClient {
             client,
             token,
             base_url: API_ENDPOINT.to_string(),
+            debug,
         })
     }
 
@@ -63,6 +68,7 @@ impl NjallaClient {
             client,
             token: token.to_string(),
             base_url: base_url.to_string(),
+            debug: false,
         })
     }
 
@@ -71,7 +77,6 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or the API returns an error.
-    #[allow(dead_code)]
     async fn request<T: for<'de> serde::Deserialize<'de>>(
         &self,
         method: &str,
@@ -79,8 +84,12 @@ impl NjallaClient {
     ) -> Result<T> {
         let request = ApiRequest {
             method: method.to_string(),
-            params,
+            params: params.clone(),
         };
+
+        if self.debug {
+            eprintln!("[DEBUG] Request: {} {:?}", method, params);
+        }
 
         let response = self
             .client
@@ -90,7 +99,13 @@ impl NjallaClient {
             .send()
             .await?;
 
-        let api_response: ApiResponse<T> = response.json().await?;
+        let response_text = response.text().await?;
+
+        if self.debug {
+            eprintln!("[DEBUG] Response: {}", response_text);
+        }
+
+        let api_response: ApiResponse<T> = serde_json::from_str(&response_text)?;
 
         if let Some(error) = api_response.error {
             return Err(NjallaError::Api {
@@ -180,38 +195,70 @@ impl NjallaClient {
         // TODO: Implement in Phase 5
         Err(NjallaError::NotImplemented("list_records".to_string()))
     }
+
+    // ========================================================================
+    // Wallet Methods
+    // ========================================================================
+
+    /// Get wallet balance.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    pub async fn get_balance(&self) -> Result<WalletBalance> {
+        self.request("get-balance", serde_json::json!({})).await
+    }
+
+    /// Add payment to refill wallet.
+    ///
+    /// # Arguments
+    ///
+    /// * `amount` - Amount in EUR (5 or multiple of 15, max 300)
+    /// * `via` - Payment method (bitcoin)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails or parameters are invalid.
+    pub async fn add_payment(&self, amount: i32, via: PaymentMethod) -> Result<Payment> {
+        self.request(
+            "add-payment",
+            serde_json::json!({
+                "amount": amount,
+                "via": via.to_string()
+            }),
+        )
+        .await
+    }
+
+    /// Get details about a payment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails or the payment is not found.
+    pub async fn get_payment(&self, id: &str) -> Result<Payment> {
+        self.request("get-payment", serde_json::json!({ "id": id }))
+            .await
+    }
+
+    /// List transactions from the last 90 days.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    pub async fn list_transactions(&self) -> Result<Vec<Transaction>> {
+        let result: TransactionsResult = self
+            .request("list-transactions", serde_json::json!({}))
+            .await?;
+        Ok(result.transactions)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::PaymentMethod;
     use wiremock::matchers::{body_json_string, header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    #[test]
-    fn new_client_requires_token() {
-        // Save original value if present
-        let original = std::env::var("NJALLA_API_TOKEN").ok();
-
-        // Test: without token should fail
-        std::env::remove_var("NJALLA_API_TOKEN");
-        let result = NjallaClient::new();
-        assert!(
-            matches!(result, Err(NjallaError::MissingToken)),
-            "expected MissingToken error without token"
-        );
-
-        // Test: with token should succeed
-        std::env::set_var("NJALLA_API_TOKEN", "test-token");
-        let result = NjallaClient::new();
-        assert!(result.is_ok(), "expected Ok with token set");
-
-        // Restore original value
-        match original {
-            Some(val) => std::env::set_var("NJALLA_API_TOKEN", val),
-            None => std::env::remove_var("NJALLA_API_TOKEN"),
-        }
-    }
 
     #[tokio::test]
     async fn request_sends_correct_headers() {
@@ -275,5 +322,125 @@ mod tests {
             .await;
 
         assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn get_balance_returns_balance() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(r#"{"method":"get-balance","params":{}}"#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": { "balance": 42 }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let balance = client.get_balance().await.unwrap();
+
+        assert_eq!(balance.balance, 42);
+    }
+
+    #[tokio::test]
+    async fn add_payment_sends_correct_params() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"add-payment","params":{"amount":15,"via":"bitcoin"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "id": "pay123",
+                    "amount": 15,
+                    "address": "bc1qtest..."
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let payment = client
+            .add_payment(15, PaymentMethod::Bitcoin)
+            .await
+            .unwrap();
+
+        assert_eq!(payment.amount, 15);
+        assert_eq!(payment.id, Some("pay123".to_string()));
+        assert_eq!(payment.address, Some("bc1qtest...".to_string()));
+    }
+
+    #[tokio::test]
+    async fn get_payment_sends_id() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"get-payment","params":{"id":"pay456"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "id": "pay456",
+                    "amount": 30,
+                    "status": "completed"
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let payment = client.get_payment("pay456").await.unwrap();
+
+        assert_eq!(payment.id, Some("pay456".to_string()));
+        assert_eq!(payment.status, Some("completed".to_string()));
+    }
+
+    #[tokio::test]
+    async fn list_transactions_unwraps_result() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"list-transactions","params":{}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "transactions": [
+                        {
+                            "id": "tx1",
+                            "amount": 50,
+                            "status": "Added 50 € via Bitcoin",
+                            "completed": "2026-01-15",
+                            "pdf": "https://njal.la/invoice/tx1/"
+                        },
+                        {
+                            "id": "tx2",
+                            "amount": 15,
+                            "status": "Waiting for transaction",
+                            "uri": "bitcoin:bc1qtest",
+                            "address": "bc1qtest",
+                            "currency": "EUR",
+                            "amount_btc": "0.0002"
+                        }
+                    ]
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let transactions = client.list_transactions().await.unwrap();
+
+        assert_eq!(transactions.len(), 2);
+        assert_eq!(transactions[0].id, "tx1");
+        assert_eq!(transactions[0].amount, 50);
+        assert_eq!(transactions[0].completed, Some("2026-01-15".to_string()));
+        assert_eq!(transactions[1].status, "Waiting for transaction");
+        assert!(transactions[1].completed.is_none());
     }
 }

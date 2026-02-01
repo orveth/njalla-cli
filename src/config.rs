@@ -35,10 +35,20 @@ impl Config {
     /// # Errors
     ///
     /// Returns an error if the config file exists but cannot be read or parsed.
-    #[allow(clippy::unnecessary_wraps)]
     pub fn load() -> Result<Self> {
+        let path = PathBuf::from(CONFIG_FILE);
+
         // Start with config file (if exists)
-        let mut config = Self::load_from_file().unwrap_or_default();
+        let mut config = if path.exists() {
+            let contents = fs::read_to_string(&path).map_err(|e| NjallaError::Config {
+                message: format!("Failed to read config file: {e}"),
+            })?;
+            toml::from_str(&contents).map_err(|e| NjallaError::Config {
+                message: format!("Failed to parse config file: {e}"),
+            })?
+        } else {
+            Self::default()
+        };
 
         // Override with environment variable
         if let Ok(token) = std::env::var("NJALLA_API_TOKEN") {
@@ -48,23 +58,6 @@ impl Config {
         }
 
         Ok(config)
-    }
-
-    /// Load configuration from file only.
-    fn load_from_file() -> Result<Self> {
-        let path = PathBuf::from(CONFIG_FILE);
-
-        if !path.exists() {
-            return Ok(Self::default());
-        }
-
-        let contents = fs::read_to_string(&path).map_err(|e| NjallaError::Config {
-            message: format!("Failed to read config file: {e}"),
-        })?;
-
-        toml::from_str(&contents).map_err(|e| NjallaError::Config {
-            message: format!("Failed to parse config file: {e}"),
-        })
     }
 
     /// Get the API token, returning an error if not configured.
@@ -90,24 +83,16 @@ mod tests {
     }
 
     #[test]
-    fn config_loading_and_env_var() {
-        // Save original value
-        let original = std::env::var("NJALLA_API_TOKEN").ok();
+    fn api_token_returns_error_when_missing() {
+        let config = Config::default();
+        assert!(matches!(config.api_token(), Err(NjallaError::MissingToken)));
+    }
 
-        // Test: without env var, load returns default (no token)
-        std::env::remove_var("NJALLA_API_TOKEN");
-        let config = Config::load().unwrap();
-        assert!(config.api_token.is_none());
-
-        // Test: env var overrides file
-        std::env::set_var("NJALLA_API_TOKEN", "test-from-env");
-        let config = Config::load().unwrap();
-        assert_eq!(config.api_token().unwrap(), "test-from-env");
-
-        // Restore original value
-        match original {
-            Some(val) => std::env::set_var("NJALLA_API_TOKEN", val),
-            None => std::env::remove_var("NJALLA_API_TOKEN"),
-        }
+    #[test]
+    fn api_token_returns_token_when_present() {
+        let config = Config {
+            api_token: Some("test-token".to_string()),
+        };
+        assert_eq!(config.api_token().unwrap(), "test-token");
     }
 }

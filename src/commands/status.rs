@@ -7,8 +7,8 @@ use crate::output::{format_domain_status, OutputFormat};
 /// Run the status command.
 ///
 /// Shows detailed status for a domain.
-pub async fn run(domain: &str, show_dns: bool, output: &str) -> Result<()> {
-    let client = NjallaClient::new()?;
+pub async fn run(domain: &str, show_dns: bool, output: &str, debug: bool) -> Result<()> {
+    let client = NjallaClient::new(debug)?;
     let format: OutputFormat = output.parse().expect("infallible");
 
     let info = client.get_domain(domain).await?;
