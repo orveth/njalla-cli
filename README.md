@@ -2,12 +2,14 @@
 
 Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust.
 
+> **Disclaimer:** This is an unofficial project and is not affiliated with or endorsed by Njalla. Use at your own risk. Always verify important operations through the official Njalla web interface.
+
 ## Features
 
 - List and manage domains
 - Search and register domains
 - Manage DNS records
-- Wallet balance and payments
+- Wallet balance and payments (BTC only)
 - JSON output for scripting
 
 ## Installation
