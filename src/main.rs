@@ -37,13 +37,13 @@ enum Commands {
     /// Register a new domain.
     ///
     /// Requires sufficient balance in your Njalla wallet.
-    /// Top up at https://njal.la/wallet/
+    /// Top up at <https://njal.la/wallet/>
     Register {
         /// Domain name to register (e.g., example.com).
         domain: String,
 
         /// Registration period in years (1-10).
-        #[arg(short, long, default_value = "1")]
+        #[arg(short, long, default_value = "1", value_parser = clap::value_parser!(i32).range(1..=10))]
         years: i32,
 
         /// Skip confirmation prompt.
@@ -126,11 +126,26 @@ async fn run() -> error::Result<()> {
 
 fn run_config(init: bool) -> error::Result<()> {
     use colored::Colorize;
+    use std::path::Path;
+
+    let config_path = Path::new("config.toml");
 
     if init {
-        let path = config::Config::init()?;
-        println!("{} Config file created at:", "✓".green());
-        println!("  {}", path.display());
+        if config_path.exists() {
+            println!("{} Config file already exists at ./config.toml", "!".yellow());
+            return Ok(());
+        }
+
+        let template = r#"# Njalla CLI Configuration
+# Get your API token from: https://njal.la → Settings → API
+
+api_token = ""
+"#;
+        std::fs::write(config_path, template).map_err(|e| error::NjallaError::Config {
+            message: format!("Failed to write config file: {e}"),
+        })?;
+
+        println!("{} Config file created at ./config.toml", "✓".green());
         println!();
         println!("Edit this file to add your API token:");
         println!("  api_token = \"your-token-here\"");
@@ -140,34 +155,30 @@ fn run_config(init: bool) -> error::Result<()> {
     }
 
     // Show current config status
-    let path = config::Config::config_path()?;
     let config = config::Config::load()?;
 
     println!("{}", "Configuration".bold());
     println!();
-    println!("{}: {}", "Config file".bold(), path.display());
-    println!("{}: {}", "File exists".bold(), path.exists());
+    println!("{}: ./config.toml", "Config file".bold());
+    println!("{}: {}", "File exists".bold(), config_path.exists());
     println!();
 
-    match config.api_token() {
-        Ok(token) => {
-            // Show masked token
-            let masked = if token.len() > 8 {
-                format!("{}...{}", &token[..4], &token[token.len()-4..])
-            } else {
-                "****".to_string()
-            };
-            println!("{}: {} (from {})",
-                "API token".bold(),
-                masked.green(),
-                if std::env::var("NJALLA_API_TOKEN").is_ok() { "env" } else { "config file" }
-            );
-        }
-        Err(_) => {
-            println!("{}: {}", "API token".bold(), "not configured".red());
-            println!();
-            println!("Run {} to create a config file", "njalla config --init".cyan());
-        }
+    if let Ok(token) = config.api_token() {
+        // Show masked token
+        let masked = if token.len() > 8 {
+            format!("{}...{}", &token[..4], &token[token.len()-4..])
+        } else {
+            "****".to_string()
+        };
+        println!("{}: {} (from {})",
+            "API token".bold(),
+            masked.green(),
+            if std::env::var("NJALLA_API_TOKEN").is_ok() { "env" } else { "config file" }
+        );
+    } else {
+        println!("{}: {}", "API token".bold(), "not configured".red());
+        println!();
+        println!("Run {} to create a config file", "njalla config --init".cyan());
     }
 
     Ok(())

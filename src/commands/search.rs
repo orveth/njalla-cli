@@ -9,7 +9,7 @@ use crate::output::{format_market_domains, OutputFormat};
 /// Searches for available domains matching the query.
 pub async fn run(query: &str, output: &str) -> Result<()> {
     let client = NjallaClient::new()?;
-    let format = OutputFormat::from_str(output);
+    let format: OutputFormat = output.parse().expect("infallible");
 
     let results = client.find_domains(query).await?;
     let formatted = format_market_domains(&results, format)?;

@@ -1,7 +1,7 @@
 //! Output formatting for CLI commands.
 
 use crate::error::Result;
-use crate::types::*;
+use crate::types::{Domain, MarketDomain, Record, ValidationResult};
 use colored::Colorize;
 
 /// Output format.
@@ -13,17 +13,32 @@ pub enum OutputFormat {
     Json,
 }
 
-impl OutputFormat {
-    /// Parse output format from string.
-    pub fn from_str(s: &str) -> Self {
-        match s.to_lowercase().as_str() {
+impl std::str::FromStr for OutputFormat {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s.to_lowercase().as_str() {
             "json" => Self::Json,
             _ => Self::Table,
-        }
+        })
+    }
+}
+
+/// Format a domain status with appropriate colors.
+fn format_status(status: &str) -> String {
+    match status {
+        "active" => status.green().to_string(),
+        "pending" => status.yellow().to_string(),
+        _ => status.red().to_string(),
     }
 }
 
 /// Format a list of domains for output.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string)]
 pub fn format_domains(domains: &[Domain], format: OutputFormat) -> Result<String> {
     match format {
         OutputFormat::Json => Ok(serde_json::to_string_pretty(domains)?),
@@ -43,16 +58,11 @@ pub fn format_domains(domains: &[Domain], format: OutputFormat) -> Result<String
             output.push('\n');
 
             for d in domains {
-                let status = match d.status.as_str() {
-                    "active" => d.status.green().to_string(),
-                    "pending" => d.status.yellow().to_string(),
-                    _ => d.status.red().to_string(),
-                };
+                let status = format_status(&d.status);
 
                 let expiry = d
                     .expiry
-                    .map(|e| e.format("%Y-%m-%d").to_string())
-                    .unwrap_or_else(|| "-".to_string());
+                    .map_or_else(|| "-".to_string(), |e| e.format("%Y-%m-%d").to_string());
 
                 output.push_str(&format!("{:<35} {:<12} {:<25}\n", d.name, status, expiry));
             }
@@ -63,6 +73,11 @@ pub fn format_domains(domains: &[Domain], format: OutputFormat) -> Result<String
 }
 
 /// Format market domain search results.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string)]
 pub fn format_market_domains(domains: &[MarketDomain], format: OutputFormat) -> Result<String> {
     match format {
         OutputFormat::Json => Ok(serde_json::to_string_pretty(domains)?),
@@ -109,6 +124,11 @@ pub fn format_market_domains(domains: &[MarketDomain], format: OutputFormat) -> 
 }
 
 /// Format a single domain status.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string)]
 pub fn format_domain_status(
     domain: &Domain,
     records: Option<&[Record]>,
@@ -125,11 +145,7 @@ pub fn format_domain_status(
         OutputFormat::Table => {
             let mut output = String::new();
 
-            let status = match domain.status.as_str() {
-                "active" => domain.status.green().to_string(),
-                "pending" => domain.status.yellow().to_string(),
-                _ => domain.status.red().to_string(),
-            };
+            let status = format_status(&domain.status);
 
             output.push_str(&format!("{}: {}\n", "Domain".bold(), domain.name.cyan()));
             output.push_str(&format!("{}: {}\n", "Status".bold(), status));
@@ -169,6 +185,11 @@ pub fn format_domain_status(
 }
 
 /// Format validation results.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+#[allow(clippy::format_push_string, dead_code)]
 pub fn format_validation(result: &ValidationResult, format: OutputFormat) -> Result<String> {
     match format {
         OutputFormat::Json => Ok(serde_json::to_string_pretty(result)?),
@@ -184,7 +205,7 @@ pub fn format_validation(result: &ValidationResult, format: OutputFormat) -> Res
                 } else {
                     ("✗".red().to_string(), "failed".red().to_string())
                 };
-                format!("  {} {} - {}\n", icon, name, status)
+                format!("  {icon} {name} - {status}\n")
             };
 
             output.push_str(&check_line("Domain exists", result.checks.exists));
@@ -207,7 +228,7 @@ pub fn format_validation(result: &ValidationResult, format: OutputFormat) -> Res
                     result.domain.cyan()
                 ));
                 if let Some(ref error) = result.error {
-                    output.push_str(&format!("  Error: {}\n", error));
+                    output.push_str(&format!("  Error: {error}\n"));
                 }
             }
 
@@ -222,10 +243,10 @@ mod tests {
 
     #[test]
     fn output_format_from_str() {
-        assert_eq!(OutputFormat::from_str("json"), OutputFormat::Json);
-        assert_eq!(OutputFormat::from_str("JSON"), OutputFormat::Json);
-        assert_eq!(OutputFormat::from_str("table"), OutputFormat::Table);
-        assert_eq!(OutputFormat::from_str("anything"), OutputFormat::Table);
+        assert_eq!("json".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
+        assert_eq!("JSON".parse::<OutputFormat>().unwrap(), OutputFormat::Json);
+        assert_eq!("table".parse::<OutputFormat>().unwrap(), OutputFormat::Table);
+        assert_eq!("anything".parse::<OutputFormat>().unwrap(), OutputFormat::Table);
     }
 
     #[test]

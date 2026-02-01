@@ -2,6 +2,9 @@
 /target/
 Cargo.lock
 
+# Config (contains API token)
+config.toml
+
 # Nix
 /result
 .direnv/

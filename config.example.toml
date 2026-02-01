@@ -1,0 +1,5 @@
+# Njalla CLI Configuration
+# Copy to config.toml and add your API token
+# Get your token from: https://njal.la → Settings → API
+
+api_token = ""

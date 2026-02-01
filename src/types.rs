@@ -64,6 +64,7 @@ pub struct Record {
 
     /// Record type (e.g., "A", "AAAA", "CNAME").
     #[serde(rename = "type")]
+    #[allow(clippy::struct_field_names)]
     pub record_type: String,
 
     /// Record content/value.
@@ -129,6 +130,7 @@ pub struct ApiError {
 
 /// Response for `list-domains`.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct DomainsResult {
     /// List of domains.
     pub domains: Vec<Domain>,
@@ -136,6 +138,7 @@ pub struct DomainsResult {
 
 /// Response for `find-domains`.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct MarketDomainsResult {
     /// List of domain search results.
     pub domains: Vec<MarketDomain>,
@@ -143,6 +146,7 @@ pub struct MarketDomainsResult {
 
 /// Response for `list-records`.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RecordsResult {
     /// List of DNS records.
     pub records: Vec<Record>,
@@ -150,6 +154,7 @@ pub struct RecordsResult {
 
 /// Response for `register-domain`.
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct RegisterResult {
     /// Task ID for tracking registration.
     pub task: String,
@@ -161,6 +166,7 @@ pub struct RegisterResult {
 
 /// Result of domain registration validation.
 #[derive(Debug, Serialize)]
+#[allow(dead_code, clippy::struct_excessive_bools)]
 pub struct ValidationResult {
     /// Domain being validated.
     pub domain: String,
@@ -186,6 +192,7 @@ pub struct ValidationResult {
 
 /// Individual validation checks.
 #[derive(Debug, Serialize)]
+#[allow(dead_code, clippy::struct_excessive_bools)]
 pub struct ValidationChecks {
     /// Domain exists in account.
     pub exists: bool,

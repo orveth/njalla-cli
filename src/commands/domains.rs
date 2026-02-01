@@ -9,7 +9,7 @@ use crate::output::{format_domains, OutputFormat};
 /// Lists all domains in the user's Njalla account.
 pub async fn run(output: &str) -> Result<()> {
     let client = NjallaClient::new()?;
-    let format = OutputFormat::from_str(output);
+    let format: OutputFormat = output.parse().expect("infallible");
 
     let domains = client.list_domains().await?;
     let formatted = format_domains(&domains, format)?;

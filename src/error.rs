@@ -4,9 +4,10 @@ use thiserror::Error;
 
 /// All errors that can occur in njalla-cli.
 #[derive(Error, Debug)]
+#[allow(dead_code)]
 pub enum NjallaError {
-    /// API token not found in environment.
-    #[error("NJALLA_API_TOKEN environment variable not set")]
+    /// API token not found.
+    #[error("No API token found. Set NJALLA_API_TOKEN or add api_token to ./config.toml")]
     MissingToken,
 
     /// HTTP request failed.
@@ -49,7 +50,7 @@ pub enum NjallaError {
     },
 }
 
-/// Result type alias using NjallaError.
+/// Result type alias using `NjallaError`.
 pub type Result<T> = std::result::Result<T, NjallaError>;
 
 #[cfg(test)]
@@ -61,7 +62,7 @@ mod tests {
         let err = NjallaError::MissingToken;
         assert_eq!(
             err.to_string(),
-            "NJALLA_API_TOKEN environment variable not set"
+            "No API token found. Set NJALLA_API_TOKEN or add api_token to ./config.toml"
         );
     }
 

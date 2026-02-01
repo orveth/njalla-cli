@@ -5,7 +5,7 @@ use crate::error::{NjallaError, Result};
 /// Run the register command.
 ///
 /// Registers a new domain through Njalla.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::unused_async)]
 pub async fn run(
     _domain: &str,
     _years: i32,
