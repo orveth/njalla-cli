@@ -2,6 +2,7 @@
 //!
 //! Handles all communication with the Njalla API.
 
+use crate::config::Config;
 use crate::error::{NjallaError, Result};
 use crate::types::*;
 
@@ -21,14 +22,18 @@ pub struct NjallaClient {
 }
 
 impl NjallaClient {
-    /// Create a new client from the `NJALLA_API_TOKEN` environment variable.
+    /// Create a new client from configuration.
+    ///
+    /// Loads token from (in order of precedence):
+    /// 1. `NJALLA_API_TOKEN` environment variable
+    /// 2. Config file at `~/.config/njalla/config.toml`
     ///
     /// # Errors
     ///
-    /// Returns `NjallaError::MissingToken` if the environment variable is not set.
+    /// Returns `NjallaError::MissingToken` if no token is configured.
     pub fn new() -> Result<Self> {
-        let token =
-            std::env::var("NJALLA_API_TOKEN").map_err(|_| NjallaError::MissingToken)?;
+        let config = Config::load()?;
+        let token = config.api_token()?.to_string();
 
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECS))

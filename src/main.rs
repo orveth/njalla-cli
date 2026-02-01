@@ -2,6 +2,7 @@
 
 mod client;
 mod commands;
+mod config;
 mod error;
 mod output;
 mod types;
@@ -75,6 +76,13 @@ enum Commands {
         /// Domain name to validate.
         domain: String,
     },
+
+    /// Show or initialize configuration.
+    Config {
+        /// Initialize config file if it doesn't exist.
+        #[arg(long)]
+        init: bool,
+    },
 }
 
 #[tokio::main]
@@ -110,5 +118,57 @@ async fn run() -> error::Result<()> {
         Commands::Validate { domain } => {
             commands::validate::run(&domain, &cli.output).await
         }
+        Commands::Config { init } => {
+            run_config(init)
+        }
     }
+}
+
+fn run_config(init: bool) -> error::Result<()> {
+    use colored::Colorize;
+
+    if init {
+        let path = config::Config::init()?;
+        println!("{} Config file created at:", "✓".green());
+        println!("  {}", path.display());
+        println!();
+        println!("Edit this file to add your API token:");
+        println!("  api_token = \"your-token-here\"");
+        println!();
+        println!("Get your token from: https://njal.la → Settings → API");
+        return Ok(());
+    }
+
+    // Show current config status
+    let path = config::Config::config_path()?;
+    let config = config::Config::load()?;
+
+    println!("{}", "Configuration".bold());
+    println!();
+    println!("{}: {}", "Config file".bold(), path.display());
+    println!("{}: {}", "File exists".bold(), path.exists());
+    println!();
+
+    match config.api_token() {
+        Ok(token) => {
+            // Show masked token
+            let masked = if token.len() > 8 {
+                format!("{}...{}", &token[..4], &token[token.len()-4..])
+            } else {
+                "****".to_string()
+            };
+            println!("{}: {} (from {})",
+                "API token".bold(),
+                masked.green(),
+                if std::env::var("NJALLA_API_TOKEN").is_ok() { "env" } else { "config file" }
+            );
+        }
+        Err(_) => {
+            println!("{}: {}", "API token".bold(), "not configured".red());
+            println!();
+            println!("Run {} to create a config file", "njalla config --init".cyan());
+        }
+    }
+
+    Ok(())
 }

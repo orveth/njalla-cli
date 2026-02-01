@@ -33,11 +33,30 @@ cargo build --release
 
 ## Configuration
 
-Set your Njalla API token (get it from https://njal.la → Settings → API):
+### Option 1: Config file (recommended)
+
+```bash
+# Initialize config file
+njalla config --init
+
+# Edit the file
+nano ~/.config/njalla/config.toml
+```
+
+Config file format:
+```toml
+api_token = "your-token-here"
+```
+
+### Option 2: Environment variable
 
 ```bash
 export NJALLA_API_TOKEN="your-token-here"
 ```
+
+Environment variable takes precedence over config file.
+
+Get your API token from: https://njal.la → Settings → API
 
 ## Usage
 

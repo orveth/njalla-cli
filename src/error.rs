@@ -40,6 +40,13 @@ pub enum NjallaError {
     /// Command not yet implemented.
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+
+    /// Configuration error.
+    #[error("Config error: {message}")]
+    Config {
+        /// Error message.
+        message: String,
+    },
 }
 
 /// Result type alias using NjallaError.
