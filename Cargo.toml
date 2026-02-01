@@ -1,0 +1,50 @@
+[package]
+name = "njalla-cli"
+version = "0.1.0"
+edition = "2021"
+description = "Privacy-first domain management CLI for Njalla"
+license = "MIT"
+repository = "https://github.com/gudnuf/njalla-cli"
+keywords = ["njalla", "domain", "dns", "privacy", "bitcoin"]
+categories = ["command-line-utilities"]
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive", "env"] }
+
+# HTTP
+reqwest = { version = "0.12", features = ["json"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Error handling
+thiserror = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Output
+colored = "2"
+
+[dev-dependencies]
+wiremock = "0.6"
+
+[[bin]]
+name = "njalla"
+path = "src/main.rs"
+
+[profile.release]
+lto = true
+strip = true
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
