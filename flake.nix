@@ -11,6 +11,9 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
+    {
+      nixosModules.default = import ./module.nix;
+    } //
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
