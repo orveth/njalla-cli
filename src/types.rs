@@ -3,6 +3,7 @@
 //! These types map directly to the Njalla API JSON structures.
 //! See `docs/API.md` for full API documentation.
 
+use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -52,6 +53,68 @@ pub struct MarketDomain {
 // DNS Types
 // ============================================================================
 
+/// DNS record type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ValueEnum)]
+pub enum RecordType {
+    A,
+    #[serde(rename = "AAAA")]
+    Aaaa,
+    #[serde(rename = "ANAME")]
+    Aname,
+    #[serde(rename = "CAA")]
+    Caa,
+    #[serde(rename = "CNAME")]
+    Cname,
+    #[serde(rename = "DS")]
+    Ds,
+    Dynamic,
+    #[serde(rename = "HTTPS")]
+    Https,
+    #[serde(rename = "MX")]
+    Mx,
+    #[serde(rename = "NAPTR")]
+    Naptr,
+    #[serde(rename = "NS")]
+    Ns,
+    #[serde(rename = "PTR")]
+    Ptr,
+    #[serde(rename = "SRV")]
+    Srv,
+    #[serde(rename = "SSHFP")]
+    Sshfp,
+    #[serde(rename = "SVCB")]
+    Svcb,
+    #[serde(rename = "TLSA")]
+    Tlsa,
+    #[serde(rename = "TXT")]
+    Txt,
+}
+
+impl std::fmt::Display for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            Self::A => "A",
+            Self::Aaaa => "AAAA",
+            Self::Aname => "ANAME",
+            Self::Caa => "CAA",
+            Self::Cname => "CNAME",
+            Self::Ds => "DS",
+            Self::Dynamic => "Dynamic",
+            Self::Https => "HTTPS",
+            Self::Mx => "MX",
+            Self::Naptr => "NAPTR",
+            Self::Ns => "NS",
+            Self::Ptr => "PTR",
+            Self::Srv => "SRV",
+            Self::Sshfp => "SSHFP",
+            Self::Svcb => "SVCB",
+            Self::Tlsa => "TLSA",
+            Self::Txt => "TXT",
+        };
+        write!(f, "{s}")
+    }
+}
+
 /// DNS record.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Record {
@@ -61,20 +124,104 @@ pub struct Record {
     /// Record name (e.g., "@", "www").
     pub name: String,
 
-    /// Record type (e.g., "A", "AAAA", "CNAME").
+    /// Record type (e.g., A, AAAA, CNAME).
     #[serde(rename = "type")]
     #[allow(clippy::struct_field_names)]
-    pub record_type: String,
+    pub record_type: RecordType,
 
     /// Record content/value.
-    pub content: String,
+    #[serde(default)]
+    pub content: Option<String>,
 
     /// Time to live in seconds.
-    pub ttl: i32,
+    #[serde(default)]
+    pub ttl: Option<i32>,
 
-    /// Priority (for MX, SRV records).
-    #[serde(rename = "prio")]
+    /// Priority (for MX, SRV, HTTPS, SVCB records).
+    #[serde(rename = "prio", default)]
     pub priority: Option<i32>,
+
+    /// Weight (SRV records only).
+    #[serde(default)]
+    pub weight: Option<i32>,
+
+    /// Port (SRV records only).
+    #[serde(default)]
+    pub port: Option<i32>,
+
+    /// Target (HTTPS, SVCB records only).
+    #[serde(default)]
+    pub target: Option<String>,
+
+    /// Value/SvcParams (HTTPS, SVCB records only).
+    #[serde(default)]
+    pub value: Option<String>,
+
+    /// SSH algorithm (SSHFP records only, 1-5: RSA, DSA, ECDSA, Ed25519, XMSS).
+    #[serde(default)]
+    pub ssh_algorithm: Option<i32>,
+
+    /// SSH fingerprint type (SSHFP records only, 1-2: SHA-1, SHA-256).
+    #[serde(default)]
+    pub ssh_type: Option<i32>,
+}
+
+/// Parameters for adding a DNS record.
+#[derive(Debug, Clone)]
+pub struct AddRecordParams {
+    /// Domain name.
+    pub domain: String,
+    /// Record type.
+    pub record_type: RecordType,
+    /// Record name (e.g., "@", "www").
+    pub name: String,
+    /// Record content/value.
+    pub content: Option<String>,
+    /// TTL in seconds.
+    pub ttl: Option<i32>,
+    /// Priority (MX, SRV, HTTPS, SVCB).
+    pub priority: Option<i32>,
+    /// Weight (SRV only).
+    pub weight: Option<i32>,
+    /// Port (SRV only).
+    pub port: Option<i32>,
+    /// Target (HTTPS, SVCB only).
+    pub target: Option<String>,
+    /// Value/SvcParams (HTTPS, SVCB only).
+    pub value: Option<String>,
+    /// SSH algorithm (SSHFP only, 1-5).
+    pub ssh_algorithm: Option<i32>,
+    /// SSH fingerprint type (SSHFP only, 1-2).
+    pub ssh_type: Option<i32>,
+}
+
+/// Parameters for editing a DNS record.
+#[derive(Debug, Clone)]
+pub struct EditRecordParams {
+    /// Domain name.
+    pub domain: String,
+    /// Record ID.
+    pub id: String,
+    /// Record name (e.g., "@", "www").
+    pub name: Option<String>,
+    /// Record content/value.
+    pub content: Option<String>,
+    /// TTL in seconds.
+    pub ttl: Option<i32>,
+    /// Priority (MX, SRV, HTTPS, SVCB).
+    pub priority: Option<i32>,
+    /// Weight (SRV only).
+    pub weight: Option<i32>,
+    /// Port (SRV only).
+    pub port: Option<i32>,
+    /// Target (HTTPS, SVCB only).
+    pub target: Option<String>,
+    /// Value/SvcParams (HTTPS, SVCB only).
+    pub value: Option<String>,
+    /// SSH algorithm (SSHFP only, 1-5).
+    pub ssh_algorithm: Option<i32>,
+    /// SSH fingerprint type (SSHFP only, 1-2).
+    pub ssh_type: Option<i32>,
 }
 
 // ============================================================================
@@ -353,9 +500,70 @@ mod tests {
 
         let record: Record = serde_json::from_str(json).unwrap();
         assert_eq!(record.id, "12345");
-        assert_eq!(record.record_type, "A");
-        assert_eq!(record.ttl, 10800);
+        assert_eq!(record.record_type, RecordType::A);
+        assert_eq!(record.ttl, Some(10800));
         assert!(record.priority.is_none());
+    }
+
+    #[test]
+    fn deserialize_record_srv() {
+        let json = r#"{
+            "id": "12346",
+            "name": "_sip._tcp",
+            "type": "SRV",
+            "content": "sipserver.example.com",
+            "ttl": 3600,
+            "prio": 10,
+            "weight": 5,
+            "port": 5060
+        }"#;
+
+        let record: Record = serde_json::from_str(json).unwrap();
+        assert_eq!(record.id, "12346");
+        assert_eq!(record.record_type, RecordType::Srv);
+        assert_eq!(record.priority, Some(10));
+        assert_eq!(record.weight, Some(5));
+        assert_eq!(record.port, Some(5060));
+    }
+
+    #[test]
+    fn deserialize_record_dynamic() {
+        let json = r#"{
+            "id": "12347",
+            "name": "home",
+            "type": "Dynamic"
+        }"#;
+
+        let record: Record = serde_json::from_str(json).unwrap();
+        assert_eq!(record.id, "12347");
+        assert_eq!(record.record_type, RecordType::Dynamic);
+        assert!(record.content.is_none());
+        assert!(record.ttl.is_none());
+    }
+
+    #[test]
+    fn record_type_display() {
+        assert_eq!(RecordType::A.to_string(), "A");
+        assert_eq!(RecordType::Aaaa.to_string(), "AAAA");
+        assert_eq!(RecordType::Mx.to_string(), "MX");
+        assert_eq!(RecordType::Dynamic.to_string(), "Dynamic");
+        assert_eq!(RecordType::Sshfp.to_string(), "SSHFP");
+    }
+
+    #[test]
+    fn record_type_serialize() {
+        assert_eq!(
+            serde_json::to_string(&RecordType::A).unwrap(),
+            "\"A\""
+        );
+        assert_eq!(
+            serde_json::to_string(&RecordType::Aaaa).unwrap(),
+            "\"AAAA\""
+        );
+        assert_eq!(
+            serde_json::to_string(&RecordType::Dynamic).unwrap(),
+            "\"Dynamic\""
+        );
     }
 
     #[test]

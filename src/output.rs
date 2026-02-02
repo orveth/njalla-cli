@@ -3,6 +3,24 @@
 use crate::error::Result;
 use crate::types::{Domain, MarketDomain, Payment, Record, Transaction, ValidationResult, WalletBalance};
 
+/// Format a single DNS record for output.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+pub fn format_record(record: &Record) -> Result<String> {
+    Ok(serde_json::to_string_pretty(record)?)
+}
+
+/// Format a list of DNS records for output.
+///
+/// # Errors
+///
+/// Returns an error if JSON serialization fails.
+pub fn format_records(records: &[Record]) -> Result<String> {
+    Ok(serde_json::to_string_pretty(records)?)
+}
+
 /// Format a list of domains for output.
 ///
 /// # Errors
@@ -137,5 +155,80 @@ mod tests {
         let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
         assert!(parsed.is_array());
         assert_eq!(parsed[0]["id"], "tx1");
+    }
+
+    #[test]
+    fn format_record_json() {
+        use crate::types::RecordType;
+
+        let record = Record {
+            id: "rec1".to_string(),
+            name: "@".to_string(),
+            record_type: RecordType::A,
+            content: Some("1.2.3.4".to_string()),
+            ttl: Some(3600),
+            priority: None,
+            weight: None,
+            port: None,
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let result = format_record(&record).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert_eq!(parsed["id"], "rec1");
+        assert_eq!(parsed["name"], "@");
+        assert_eq!(parsed["type"], "A");
+        assert_eq!(parsed["content"], "1.2.3.4");
+        assert_eq!(parsed["ttl"], 3600);
+    }
+
+    #[test]
+    fn format_records_empty() {
+        let result = format_records(&[]).unwrap();
+        assert_eq!(result, "[]");
+    }
+
+    #[test]
+    fn format_records_json() {
+        use crate::types::RecordType;
+
+        let records = vec![
+            Record {
+                id: "rec1".to_string(),
+                name: "@".to_string(),
+                record_type: RecordType::A,
+                content: Some("1.2.3.4".to_string()),
+                ttl: Some(3600),
+                priority: None,
+                weight: None,
+                port: None,
+                target: None,
+                value: None,
+                ssh_algorithm: None,
+                ssh_type: None,
+            },
+            Record {
+                id: "rec2".to_string(),
+                name: "@".to_string(),
+                record_type: RecordType::Mx,
+                content: Some("mail.example.com".to_string()),
+                ttl: Some(3600),
+                priority: Some(10),
+                weight: None,
+                port: None,
+                target: None,
+                value: None,
+                ssh_algorithm: None,
+                ssh_type: None,
+            },
+        ];
+        let result = format_records(&records).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&result).unwrap();
+        assert!(parsed.is_array());
+        assert_eq!(parsed[0]["id"], "rec1");
+        assert_eq!(parsed[1]["id"], "rec2");
+        assert_eq!(parsed[1]["prio"], 10);
     }
 }

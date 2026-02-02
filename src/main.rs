@@ -110,6 +110,12 @@ enum Commands {
         init: bool,
     },
 
+    /// Manage DNS records for a domain.
+    Dns {
+        #[command(subcommand)]
+        command: DnsCommands,
+    },
+
     /// Manage wallet and payments.
     Wallet {
         #[command(subcommand)]
@@ -143,6 +149,125 @@ enum WalletCommands {
     Transactions,
 }
 
+#[derive(Subcommand)]
+enum DnsCommands {
+    /// List all DNS records for a domain.
+    List {
+        /// Domain name.
+        domain: String,
+    },
+
+    /// Add a new DNS record.
+    Add {
+        /// Domain name.
+        domain: String,
+
+        /// Record type.
+        #[arg(short = 't', long, value_enum)]
+        record_type: types::RecordType,
+
+        /// Record name (e.g., "@", "www").
+        #[arg(short, long)]
+        name: String,
+
+        /// Record content/value.
+        #[arg(short, long)]
+        content: Option<String>,
+
+        /// TTL in seconds.
+        #[arg(long)]
+        ttl: Option<i32>,
+
+        /// Priority (MX, SRV, HTTPS, SVCB).
+        #[arg(short, long)]
+        priority: Option<i32>,
+
+        /// Weight (SRV only).
+        #[arg(short, long)]
+        weight: Option<i32>,
+
+        /// Port (SRV only).
+        #[arg(long)]
+        port: Option<i32>,
+
+        /// Target (HTTPS, SVCB only).
+        #[arg(long)]
+        target: Option<String>,
+
+        /// Value/SvcParams (HTTPS, SVCB only, e.g., "alpn=h2,h3").
+        #[arg(long)]
+        value: Option<String>,
+
+        /// SSH algorithm (SSHFP only, 1-5: RSA, DSA, ECDSA, Ed25519, XMSS).
+        #[arg(long)]
+        ssh_algorithm: Option<i32>,
+
+        /// SSH fingerprint type (SSHFP only, 1-2: SHA-1, SHA-256).
+        #[arg(long)]
+        ssh_type: Option<i32>,
+    },
+
+    /// Edit an existing DNS record.
+    Edit {
+        /// Domain name.
+        domain: String,
+
+        /// Record ID.
+        #[arg(short, long)]
+        id: String,
+
+        /// Record name (e.g., "@", "www").
+        #[arg(short, long)]
+        name: Option<String>,
+
+        /// Record content/value.
+        #[arg(short, long)]
+        content: Option<String>,
+
+        /// TTL in seconds.
+        #[arg(long)]
+        ttl: Option<i32>,
+
+        /// Priority (MX, SRV, HTTPS, SVCB).
+        #[arg(short, long)]
+        priority: Option<i32>,
+
+        /// Weight (SRV only).
+        #[arg(short, long)]
+        weight: Option<i32>,
+
+        /// Port (SRV only).
+        #[arg(long)]
+        port: Option<i32>,
+
+        /// Target (HTTPS, SVCB only).
+        #[arg(long)]
+        target: Option<String>,
+
+        /// Value/SvcParams (HTTPS, SVCB only, e.g., "alpn=h2,h3").
+        #[arg(long)]
+        value: Option<String>,
+
+        /// SSH algorithm (SSHFP only, 1-5: RSA, DSA, ECDSA, Ed25519, XMSS).
+        #[arg(long)]
+        ssh_algorithm: Option<i32>,
+
+        /// SSH fingerprint type (SSHFP only, 1-2: SHA-1, SHA-256).
+        #[arg(long)]
+        ssh_type: Option<i32>,
+    },
+
+    /// Remove a DNS record.
+    Remove {
+        /// Domain name.
+        domain: String,
+
+        /// Record ID.
+        #[arg(short, long)]
+        id: String,
+    },
+}
+
 fn main() {
     if let Err(err) = run() {
         eprintln!("Error: {err}");
@@ -166,6 +291,72 @@ fn run() -> error::Result<()> {
         Commands::Status { domain, dns } => commands::status::run(&domain, dns, cli.debug),
         Commands::Validate { domain } => commands::validate::run(&domain, cli.debug),
         Commands::Config { init } => run_config(init),
+        Commands::Dns { command } => match command {
+            DnsCommands::List { domain } => commands::dns::run_list(&domain, cli.debug),
+            DnsCommands::Add {
+                domain,
+                record_type,
+                name,
+                content,
+                ttl,
+                priority,
+                weight,
+                port,
+                target,
+                value,
+                ssh_algorithm,
+                ssh_type,
+            } => {
+                let params = types::AddRecordParams {
+                    domain,
+                    record_type,
+                    name,
+                    content,
+                    ttl,
+                    priority,
+                    weight,
+                    port,
+                    target,
+                    value,
+                    ssh_algorithm,
+                    ssh_type,
+                };
+                commands::dns::run_add(&params, cli.debug)
+            }
+            DnsCommands::Edit {
+                domain,
+                id,
+                name,
+                content,
+                ttl,
+                priority,
+                weight,
+                port,
+                target,
+                value,
+                ssh_algorithm,
+                ssh_type,
+            } => {
+                let params = types::EditRecordParams {
+                    domain,
+                    id,
+                    name,
+                    content,
+                    ttl,
+                    priority,
+                    weight,
+                    port,
+                    target,
+                    value,
+                    ssh_algorithm,
+                    ssh_type,
+                };
+                commands::dns::run_edit(&params, cli.debug)
+            }
+            DnsCommands::Remove { domain, id } => {
+                commands::dns::run_remove(&domain, &id, cli.debug)
+            }
+        },
         Commands::Wallet { command } => match command {
             WalletCommands::Balance => commands::wallet::run_balance(cli.debug),
             WalletCommands::AddPayment { amount, via } => {

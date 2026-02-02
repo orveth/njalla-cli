@@ -5,9 +5,9 @@
 use crate::config::Config;
 use crate::error::{NjallaError, Result};
 use crate::types::{
-    ApiRequest, ApiResponse, Domain, DomainsResult, MarketDomain, MarketDomainsResult, Payment,
-    PaymentMethod, Record, RecordsResult, RegisterResult, TaskStatus, Transaction,
-    TransactionsResult, WalletBalance,
+    AddRecordParams, ApiRequest, ApiResponse, Domain, DomainsResult, EditRecordParams,
+    MarketDomain, MarketDomainsResult, Payment, PaymentMethod, Record, RecordsResult,
+    RegisterResult, TaskStatus, Transaction, TransactionsResult, WalletBalance,
 };
 
 /// Njalla API endpoint.
@@ -179,6 +179,115 @@ impl NjallaClient {
         let result: RecordsResult =
             self.request("list-records", serde_json::json!({ "domain": domain }))?;
         Ok(result.records)
+    }
+
+    /// Add a DNS record to a domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn add_record(&self, params: &AddRecordParams) -> Result<Record> {
+        let mut json_params = serde_json::json!({
+            "domain": params.domain,
+            "type": params.record_type,
+            "name": params.name,
+        });
+
+        // Safe: json! macro always creates an object when given object syntax
+        let obj = json_params.as_object_mut().expect("json object");
+
+        if let Some(content) = &params.content {
+            obj.insert("content".to_string(), serde_json::json!(content));
+        }
+        if let Some(ttl) = params.ttl {
+            obj.insert("ttl".to_string(), serde_json::json!(ttl));
+        }
+        if let Some(prio) = params.priority {
+            obj.insert("prio".to_string(), serde_json::json!(prio));
+        }
+        if let Some(weight) = params.weight {
+            obj.insert("weight".to_string(), serde_json::json!(weight));
+        }
+        if let Some(port) = params.port {
+            obj.insert("port".to_string(), serde_json::json!(port));
+        }
+        if let Some(target) = &params.target {
+            obj.insert("target".to_string(), serde_json::json!(target));
+        }
+        if let Some(value) = &params.value {
+            obj.insert("value".to_string(), serde_json::json!(value));
+        }
+        if let Some(ssh_algorithm) = params.ssh_algorithm {
+            obj.insert("ssh_algorithm".to_string(), serde_json::json!(ssh_algorithm));
+        }
+        if let Some(ssh_type) = params.ssh_type {
+            obj.insert("ssh_type".to_string(), serde_json::json!(ssh_type));
+        }
+
+        self.request("add-record", json_params)
+    }
+
+    /// Edit an existing DNS record.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    #[allow(clippy::missing_panics_doc)]
+    pub fn edit_record(&self, params: &EditRecordParams) -> Result<Record> {
+        let mut json_params = serde_json::json!({
+            "domain": params.domain,
+            "id": params.id,
+        });
+
+        // Safe: json! macro always creates an object when given object syntax
+        let obj = json_params.as_object_mut().expect("json object");
+
+        if let Some(name) = &params.name {
+            obj.insert("name".to_string(), serde_json::json!(name));
+        }
+        if let Some(content) = &params.content {
+            obj.insert("content".to_string(), serde_json::json!(content));
+        }
+        if let Some(ttl) = params.ttl {
+            obj.insert("ttl".to_string(), serde_json::json!(ttl));
+        }
+        if let Some(prio) = params.priority {
+            obj.insert("prio".to_string(), serde_json::json!(prio));
+        }
+        if let Some(weight) = params.weight {
+            obj.insert("weight".to_string(), serde_json::json!(weight));
+        }
+        if let Some(port) = params.port {
+            obj.insert("port".to_string(), serde_json::json!(port));
+        }
+        if let Some(target) = &params.target {
+            obj.insert("target".to_string(), serde_json::json!(target));
+        }
+        if let Some(value) = &params.value {
+            obj.insert("value".to_string(), serde_json::json!(value));
+        }
+        if let Some(ssh_algorithm) = params.ssh_algorithm {
+            obj.insert("ssh_algorithm".to_string(), serde_json::json!(ssh_algorithm));
+        }
+        if let Some(ssh_type) = params.ssh_type {
+            obj.insert("ssh_type".to_string(), serde_json::json!(ssh_type));
+        }
+
+        self.request("edit-record", json_params)
+    }
+
+    /// Remove a DNS record from a domain.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API request fails.
+    pub fn remove_record(&self, domain: &str, id: &str) -> Result<()> {
+        let _: serde_json::Value = self.request(
+            "remove-record",
+            serde_json::json!({ "domain": domain, "id": id }),
+        )?;
+        Ok(())
     }
 
     // ========================================================================
@@ -598,6 +707,8 @@ mod tests {
 
     #[test]
     fn list_records_returns_dns_records() {
+        use crate::types::RecordType;
+
         let mock_server = mock_server();
 
         mount(
@@ -645,9 +756,9 @@ mod tests {
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].id, "rec1");
         assert_eq!(records[0].name, "@");
-        assert_eq!(records[0].record_type, "A");
-        assert_eq!(records[0].content, "192.0.2.1");
-        assert_eq!(records[0].ttl, 10800);
+        assert_eq!(records[0].record_type, RecordType::A);
+        assert_eq!(records[0].content, Some("192.0.2.1".to_string()));
+        assert_eq!(records[0].ttl, Some(10800));
         assert!(records[0].priority.is_none());
         assert_eq!(records[2].priority, Some(10));
     }
@@ -776,5 +887,288 @@ mod tests {
 
         assert_eq!(status.id, "task-fail");
         assert_eq!(status.status, "failed");
+    }
+
+    // ========================================================================
+    // DNS CRUD Methods Tests
+    // ========================================================================
+
+    #[test]
+    fn add_record_a_type() {
+        use crate::types::RecordType;
+
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"add-record","params":{"domain":"example.com","type":"A","name":"@","content":"1.2.3.4","ttl":3600}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "rec123",
+                        "name": "@",
+                        "type": "A",
+                        "content": "1.2.3.4",
+                        "ttl": 3600
+                    }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let params = AddRecordParams {
+            domain: "example.com".to_string(),
+            record_type: RecordType::A,
+            name: "@".to_string(),
+            content: Some("1.2.3.4".to_string()),
+            ttl: Some(3600),
+            priority: None,
+            weight: None,
+            port: None,
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let record = client.add_record(&params).unwrap();
+
+        assert_eq!(record.id, "rec123");
+        assert_eq!(record.name, "@");
+        assert_eq!(record.record_type, RecordType::A);
+        assert_eq!(record.content, Some("1.2.3.4".to_string()));
+        assert_eq!(record.ttl, Some(3600));
+    }
+
+    #[test]
+    fn add_record_mx_with_priority() {
+        use crate::types::RecordType;
+
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"add-record","params":{"domain":"example.com","type":"MX","name":"@","content":"mail.example.com","ttl":3600,"prio":10}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "rec124",
+                        "name": "@",
+                        "type": "MX",
+                        "content": "mail.example.com",
+                        "ttl": 3600,
+                        "prio": 10
+                    }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let params = AddRecordParams {
+            domain: "example.com".to_string(),
+            record_type: RecordType::Mx,
+            name: "@".to_string(),
+            content: Some("mail.example.com".to_string()),
+            ttl: Some(3600),
+            priority: Some(10),
+            weight: None,
+            port: None,
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let record = client.add_record(&params).unwrap();
+
+        assert_eq!(record.id, "rec124");
+        assert_eq!(record.record_type, RecordType::Mx);
+        assert_eq!(record.priority, Some(10));
+    }
+
+    #[test]
+    fn add_record_srv_full() {
+        use crate::types::RecordType;
+
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"add-record","params":{"domain":"example.com","type":"SRV","name":"_sip._tcp","content":"sipserver.example.com","ttl":3600,"prio":10,"weight":5,"port":5060}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "rec125",
+                        "name": "_sip._tcp",
+                        "type": "SRV",
+                        "content": "sipserver.example.com",
+                        "ttl": 3600,
+                        "prio": 10,
+                        "weight": 5,
+                        "port": 5060
+                    }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let params = AddRecordParams {
+            domain: "example.com".to_string(),
+            record_type: RecordType::Srv,
+            name: "_sip._tcp".to_string(),
+            content: Some("sipserver.example.com".to_string()),
+            ttl: Some(3600),
+            priority: Some(10),
+            weight: Some(5),
+            port: Some(5060),
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let record = client.add_record(&params).unwrap();
+
+        assert_eq!(record.id, "rec125");
+        assert_eq!(record.record_type, RecordType::Srv);
+        assert_eq!(record.weight, Some(5));
+        assert_eq!(record.port, Some(5060));
+    }
+
+    #[test]
+    fn add_record_dynamic() {
+        use crate::types::RecordType;
+
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"add-record","params":{"domain":"example.com","type":"Dynamic","name":"home"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "rec126",
+                        "name": "home",
+                        "type": "Dynamic"
+                    }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let params = AddRecordParams {
+            domain: "example.com".to_string(),
+            record_type: RecordType::Dynamic,
+            name: "home".to_string(),
+            content: None,
+            ttl: None,
+            priority: None,
+            weight: None,
+            port: None,
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let record = client.add_record(&params).unwrap();
+
+        assert_eq!(record.id, "rec126");
+        assert_eq!(record.record_type, RecordType::Dynamic);
+    }
+
+    #[test]
+    fn edit_record_updates_content() {
+        use crate::types::RecordType;
+
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"edit-record","params":{"domain":"example.com","id":"rec123","content":"5.6.7.8","ttl":300}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "rec123",
+                        "name": "@",
+                        "type": "A",
+                        "content": "5.6.7.8",
+                        "ttl": 300
+                    }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let params = EditRecordParams {
+            domain: "example.com".to_string(),
+            id: "rec123".to_string(),
+            name: None,
+            content: Some("5.6.7.8".to_string()),
+            ttl: Some(300),
+            priority: None,
+            weight: None,
+            port: None,
+            target: None,
+            value: None,
+            ssh_algorithm: None,
+            ssh_type: None,
+        };
+        let record = client.edit_record(&params).unwrap();
+
+        assert_eq!(record.id, "rec123");
+        assert_eq!(record.record_type, RecordType::A);
+        assert_eq!(record.content, Some("5.6.7.8".to_string()));
+        assert_eq!(record.ttl, Some(300));
+    }
+
+    #[test]
+    fn remove_record_deletes_record() {
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"remove-record","params":{"domain":"example.com","id":"rec123"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {}
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let result = client.remove_record("example.com", "rec123");
+
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn remove_record_not_found() {
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"remove-record","params":{"domain":"example.com","id":"notfound"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "error": { "message": "Record not found" }
+                })))
+                .expect(1),
+        );
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
+        let result = client.remove_record("example.com", "notfound");
+
+        assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Record not found"));
     }
 }

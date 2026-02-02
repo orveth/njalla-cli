@@ -1,5 +1,6 @@
 //! CLI command implementations.
 
+pub mod dns;
 pub mod domains;
 pub mod register;
 pub mod search;

@@ -51,6 +51,32 @@ njalla search example   # Search available domains
 njalla wallet balance   # Check wallet balance
 ```
 
+### DNS Management
+
+```bash
+# List DNS records
+njalla dns list example.com
+
+# Add an A record
+njalla dns add example.com -t a -n @ -c 1.2.3.4 --ttl 3600
+
+# Add an MX record with priority
+njalla dns add example.com -t mx -n @ -c mail.example.com --ttl 3600 -p 10
+
+# Add an SRV record
+njalla dns add example.com -t srv -n _sip._tcp -c sipserver.example.com \
+  --ttl 3600 -p 10 -w 5 --port 5060
+
+# Add a Dynamic DNS record
+njalla dns add example.com -t dynamic -n home
+
+# Edit a record
+njalla dns edit example.com --id 1337 -c 5.6.7.8 --ttl 300
+
+# Remove a record
+njalla dns remove example.com --id 1337
+```
+
 ## Development
 
 This project uses Nix for reproducible builds. Install [Nix](https://determinate.systems/nix-installer/) and [direnv](https://direnv.net/), then:

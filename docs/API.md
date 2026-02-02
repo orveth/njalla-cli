@@ -214,15 +214,29 @@ Check the status of an async operation (like domain registration).
 60, 300, 900, 3600, 10800, 21600, 86400
 ```
 
-**Priority (for MX/SRV records):**
+**Priority (for MX/SRV/HTTPS/SVCB records):**
 ```
 0, 1, 5, 10, 20, 30, 40, 50, 60
 ```
 
 **Record Types:**
 ```
-A, AAAA, CNAME, MX, TXT, NS, SRV, CAA
+A, AAAA, ANAME, CAA, CNAME, DS, Dynamic, HTTPS, MX, NAPTR, NS, PTR, SRV, SSHFP, SVCB, TLSA, TXT
 ```
+
+### Type-Specific Fields
+
+| Field | Applicable Types | Values |
+|-------|------------------|--------|
+| `name` | All | string |
+| `content` | A, AAAA, ANAME, CAA, CNAME, DS, MX, NAPTR, NS, PTR, SRV, SSHFP, TLSA, TXT | string |
+| `ttl` | A, AAAA, ANAME, CAA, CNAME, DS, MX, NAPTR, NS, PTR, SRV, SSHFP, TLSA, TXT | int |
+| `prio` | HTTPS, MX, SRV, SVCB | int |
+| `weight` | SRV | int |
+| `port` | SRV | int |
+| `target` | HTTPS, SVCB | string |
+| `ssh_algorithm` | SSHFP | 1-5 (RSA, DSA, ECDSA, Ed25519, XMSS) |
+| `ssh_type` | SSHFP | 1-2 (SHA-1, SHA-256) |
 
 ### `list-records`
 
@@ -336,7 +350,14 @@ Edit an existing DNS record. Note: The record `type` cannot be changed.
 ```json
 {
   "jsonrpc": "2.0",
-  "result": {}
+  "result": {
+    "id": "1337",
+    "name": "@",
+    "type": "MX",
+    "content": "updated.com",
+    "ttl": 3600,
+    "prio": 5
+  }
 }
 ```
 
