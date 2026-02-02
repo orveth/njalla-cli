@@ -9,32 +9,14 @@ keywords = ["njalla", "domain", "dns", "privacy", "bitcoin"]
 categories = ["command-line-utilities"]
 
 [dependencies]
-# CLI
-clap = { version = "4", features = ["derive", "env"] }
-
-# HTTP
-reqwest = { version = "0.12", features = ["json"] }
-
-# Serialization
+clap = { version = "4", features = ["derive"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-
-# Async
-tokio = { version = "1", features = ["full"] }
-
-# Error handling
-thiserror = "1"
-
-# Time
-chrono = { version = "0.4", features = ["serde"] }
-
-# Config
 toml = "0.8"
 
-# Output
-colored = "2"
-
 [dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
 wiremock = "0.6"
 
 [[bin]]

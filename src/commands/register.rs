@@ -2,10 +2,9 @@
 
 use crate::client::NjallaClient;
 use crate::error::{NjallaError, Result};
-use crate::output::OutputFormat;
-use colored::Colorize;
 use std::io::{self, Write};
-use tokio::time::{sleep, Duration};
+use std::thread;
+use std::time::{Duration, Instant};
 
 /// Poll interval for checking task status.
 const POLL_INTERVAL_SECS: u64 = 2;
@@ -14,20 +13,18 @@ const POLL_INTERVAL_SECS: u64 = 2;
 ///
 /// Registers a new domain through Njalla.
 #[allow(clippy::too_many_arguments, clippy::too_many_lines)]
-pub async fn run(
+pub fn run(
     domain: &str,
     years: i32,
     confirm: bool,
     wait: bool,
     timeout: u64,
-    output: &str,
     debug: bool,
 ) -> Result<()> {
     let client = NjallaClient::new(debug)?;
-    let format: OutputFormat = output.parse().expect("infallible");
 
     // Check domain availability and get price
-    let search_results = client.find_domains(domain).await?;
+    let search_results = client.find_domains(domain)?;
     let domain_info = search_results.iter().find(|d| d.name == domain);
 
     let Some(info) = domain_info else {
@@ -51,11 +48,13 @@ pub async fn run(
     // Show confirmation unless --confirm flag is set
     if !confirm {
         println!(
-            "Domain: {}\nPrice: {} EUR/year\nYears: {}\nTotal: {} EUR\n",
-            domain.cyan(),
-            info.price,
-            years,
-            total_price.to_string().green()
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "domain": domain,
+                "price_per_year": info.price,
+                "years": years,
+                "total_price": total_price
+            }))?
         );
         print!("Proceed with registration? [y/N] ");
         let _ = io::stdout().flush();
@@ -69,36 +68,24 @@ pub async fn run(
     }
 
     // Register the domain
-    let task_id = client.register_domain(domain, years).await?;
+    let task_id = client.register_domain(domain, years)?;
 
     if !wait {
         // Output task ID and exit
-        match format {
-            OutputFormat::Json => {
-                println!(
-                    "{}",
-                    serde_json::to_string_pretty(&serde_json::json!({
-                        "domain": domain,
-                        "task_id": task_id,
-                        "status": "pending"
-                    }))?
-                );
-            }
-            OutputFormat::Table => {
-                println!(
-                    "Registration started for {}\nTask ID: {}\n\nUse 'njalla status {}' to check progress.",
-                    domain.cyan(),
-                    task_id.yellow(),
-                    domain
-                );
-            }
-        }
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "domain": domain,
+                "task_id": task_id,
+                "status": "pending"
+            }))?
+        );
         return Ok(());
     }
 
     // Poll for completion
-    println!("Waiting for registration to complete...");
-    let start = std::time::Instant::now();
+    eprintln!("Waiting for registration to complete...");
+    let start = Instant::now();
     let timeout_duration = Duration::from_secs(timeout);
 
     loop {
@@ -109,29 +96,18 @@ pub async fn run(
             });
         }
 
-        let status = client.check_task(&task_id).await?;
+        let status = client.check_task(&task_id)?;
 
         match status.status.as_str() {
             "completed" => {
-                match format {
-                    OutputFormat::Json => {
-                        println!(
-                            "{}",
-                            serde_json::to_string_pretty(&serde_json::json!({
-                                "domain": domain,
-                                "task_id": task_id,
-                                "status": "completed"
-                            }))?
-                        );
-                    }
-                    OutputFormat::Table => {
-                        println!(
-                            "{} Domain {} registered successfully!",
-                            "✓".green(),
-                            domain.cyan()
-                        );
-                    }
-                }
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "domain": domain,
+                        "task_id": task_id,
+                        "status": "completed"
+                    }))?
+                );
                 return Ok(());
             }
             "failed" => {
@@ -141,7 +117,7 @@ pub async fn run(
             }
             _ => {
                 // Still pending/processing, wait and retry
-                sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
+                thread::sleep(Duration::from_secs(POLL_INTERVAL_SECS));
             }
         }
     }

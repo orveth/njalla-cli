@@ -8,7 +8,6 @@ mod output;
 mod types;
 
 use clap::{Parser, Subcommand};
-use colored::Colorize;
 
 /// Privacy-first domain management CLI for Njalla.
 #[derive(Parser)]
@@ -31,7 +30,6 @@ CONFIGURATION:
 
 EXAMPLES:
     njalla domains                      List all your domains
-    njalla domains -o json              Output as JSON for scripting
     njalla search bitcoin               Search for available domains
     njalla register example.com         Register a domain (interactive)
     njalla register example.com --wait  Register and wait for completion
@@ -43,10 +41,6 @@ MORE INFO:
     https://github.com/gudnuf/njalla-cli
     https://njal.la/api/")]
 struct Cli {
-    /// Output format: table or json.
-    #[arg(short, long, default_value = "table", global = true)]
-    output: String,
-
     /// Enable debug mode to see raw API responses.
     #[arg(long, global = true)]
     debug: bool,
@@ -149,70 +143,55 @@ enum WalletCommands {
     Transactions,
 }
 
-#[tokio::main]
-async fn main() {
-    if let Err(err) = run().await {
-        eprintln!("{} {}", "Error:".red().bold(), err);
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("Error: {err}");
         std::process::exit(1);
     }
 }
 
-async fn run() -> error::Result<()> {
+fn run() -> error::Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Domains => {
-            commands::domains::run(&cli.output, cli.debug).await
-        }
-        Commands::Search { query } => {
-            commands::search::run(&query, &cli.output, cli.debug).await
-        }
+        Commands::Domains => commands::domains::run(cli.debug),
+        Commands::Search { query } => commands::search::run(&query, cli.debug),
         Commands::Register {
             domain,
             years,
             confirm,
             wait,
             timeout,
-        } => {
-            commands::register::run(&domain, years, confirm, wait, timeout, &cli.output, cli.debug).await
-        }
-        Commands::Status { domain, dns } => {
-            commands::status::run(&domain, dns, &cli.output, cli.debug).await
-        }
-        Commands::Validate { domain } => {
-            commands::validate::run(&domain, &cli.output, cli.debug).await
-        }
-        Commands::Config { init } => {
-            run_config(init)
-        }
-        Commands::Wallet { command } => {
-            match command {
-                WalletCommands::Balance => {
-                    commands::wallet::run_balance(&cli.output, cli.debug).await
-                }
-                WalletCommands::AddPayment { amount, via } => {
-                    commands::wallet::run_add_payment(amount, via, &cli.output, cli.debug).await
-                }
-                WalletCommands::GetPayment { id } => {
-                    commands::wallet::run_get_payment(&id, &cli.output, cli.debug).await
-                }
-                WalletCommands::Transactions => {
-                    commands::wallet::run_transactions(&cli.output, cli.debug).await
-                }
+        } => commands::register::run(&domain, years, confirm, wait, timeout, cli.debug),
+        Commands::Status { domain, dns } => commands::status::run(&domain, dns, cli.debug),
+        Commands::Validate { domain } => commands::validate::run(&domain, cli.debug),
+        Commands::Config { init } => run_config(init),
+        Commands::Wallet { command } => match command {
+            WalletCommands::Balance => commands::wallet::run_balance(cli.debug),
+            WalletCommands::AddPayment { amount, via } => {
+                commands::wallet::run_add_payment(amount, via, cli.debug)
             }
-        }
+            WalletCommands::GetPayment { id } => commands::wallet::run_get_payment(&id, cli.debug),
+            WalletCommands::Transactions => commands::wallet::run_transactions(cli.debug),
+        },
     }
 }
 
 fn run_config(init: bool) -> error::Result<()> {
-    use colored::Colorize;
     use std::path::Path;
 
     let config_path = Path::new("config.toml");
 
     if init {
         if config_path.exists() {
-            println!("{} Config file already exists at ./config.toml", "!".yellow());
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "status": "exists",
+                    "path": "./config.toml",
+                    "message": "Config file already exists"
+                }))?
+            );
             return Ok(());
         }
 
@@ -225,41 +204,47 @@ api_token = ""
             message: format!("Failed to write config file: {e}"),
         })?;
 
-        println!("{} Config file created at ./config.toml", "✓".green());
-        println!();
-        println!("Edit this file to add your API token:");
-        println!("  api_token = \"your-token-here\"");
-        println!();
-        println!("Get your token from: https://njal.la → Settings → API");
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&serde_json::json!({
+                "status": "created",
+                "path": "./config.toml",
+                "message": "Config file created. Edit to add your API token from https://njal.la/settings/api/"
+            }))?
+        );
         return Ok(());
     }
 
     // Show current config status
     let config = config::Config::load()?;
 
-    println!("{}", "Configuration".bold());
-    println!();
-    println!("{}: ./config.toml", "Config file".bold());
-    println!("{}: {}", "File exists".bold(), config_path.exists());
-    println!();
-
-    if let Ok(token) = config.api_token() {
+    let token_info = if let Ok(token) = config.api_token() {
         // Show masked token
         let masked = if token.len() > 8 {
-            format!("{}...{}", &token[..4], &token[token.len()-4..])
+            format!("{}...{}", &token[..4], &token[token.len() - 4..])
         } else {
             "****".to_string()
         };
-        println!("{}: {} (from {})",
-            "API token".bold(),
-            masked.green(),
-            if std::env::var("NJALLA_API_TOKEN").is_ok() { "env" } else { "config file" }
-        );
+        serde_json::json!({
+            "configured": true,
+            "masked_token": masked,
+            "source": if std::env::var("NJALLA_API_TOKEN").is_ok() { "env" } else { "config file" }
+        })
     } else {
-        println!("{}: {}", "API token".bold(), "not configured".red());
-        println!();
-        println!("Run {} to create a config file", "njalla config --init".cyan());
-    }
+        serde_json::json!({
+            "configured": false,
+            "message": "Run 'njalla config --init' to create a config file"
+        })
+    };
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&serde_json::json!({
+            "config_file": "./config.toml",
+            "file_exists": config_path.exists(),
+            "api_token": token_info
+        }))?
+    );
 
     Ok(())
 }

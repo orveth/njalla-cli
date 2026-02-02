@@ -7,10 +7,9 @@
 //! ```no_run
 //! use njalla_cli::client::NjallaClient;
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let client = NjallaClient::new(false)?;  // false = no debug output
-//!     let domains = client.list_domains().await?;
+//!     let domains = client.list_domains()?;
 //!     println!("Found {} domains", domains.len());
 //!     Ok(())
 //! }

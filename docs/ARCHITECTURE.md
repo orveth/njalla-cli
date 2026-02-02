@@ -38,7 +38,7 @@ High-level design of njalla-cli.
 - Re-export client, types, error modules
 
 ### error.rs
-- Define `NjallaError` enum with thiserror
+- Define `NjallaError` enum with manual Display/Error impls
 - Cover: auth, network, API, validation errors
 - Implement Display for user-friendly messages
 
@@ -56,17 +56,16 @@ High-level design of njalla-cli.
 - Record methods: list, add, edit, remove
 
 ### output.rs
-- Format data for table or JSON output
-- Color coding for terminal (with `colored`)
-- Respect `--output` flag
+- Format data as JSON for consistent, scriptable output
+- All output uses `serde_json::to_string_pretty`
 
 ### commands/
 Each command module follows the same pattern:
 ```rust
-pub async fn run(args: &Args, output: &str) -> Result<()> {
-    let client = NjallaClient::new()?;
-    let result = client.some_method().await?;
-    format_output(result, output)?;
+pub fn run(debug: bool) -> Result<()> {
+    let client = NjallaClient::new(debug)?;
+    let result = client.some_method()?;
+    println!("{}", serde_json::to_string_pretty(&result)?);
     Ok(())
 }
 ```
@@ -86,12 +85,6 @@ fn main() {
 }
 ```
 
-## Async Runtime
-
-- Use tokio with `#[tokio::main]`
-- All API calls are async
-- Commands await client methods
-
 ## Configuration
 
 Config file (`./config.toml`) or environment variable:
@@ -109,14 +102,14 @@ api_token = "your-token-here"
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_error_display() {
         // Test error formatting
     }
-    
-    #[tokio::test]
-    async fn test_client_with_mock() {
+
+    #[test]
+    fn test_client_with_mock() {
         // Test with wiremock
     }
 }
@@ -125,9 +118,9 @@ mod tests {
 ### Integration Tests
 ```rust
 // tests/integration.rs
-#[tokio::test]
+#[test]
 #[ignore] // Requires real API token
-async fn test_list_domains() {
+fn test_list_domains() {
     // Real API call
 }
 ```
@@ -136,15 +129,11 @@ async fn test_list_domains() {
 
 ### Runtime
 - `clap` - CLI argument parsing
-- `reqwest` - HTTP client
+- `reqwest` - HTTP client (blocking)
 - `serde` / `serde_json` - JSON handling
-- `tokio` - Async runtime
-- `thiserror` - Error derivation
-- `chrono` - DateTime handling
-- `colored` - Terminal colors
 
 ### Development
-- `wiremock` - HTTP mocking for tests
+- `tokio` / `wiremock` - HTTP mocking for tests
 
 ## Nix Build
 

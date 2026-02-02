@@ -46,7 +46,7 @@ This document outlines the phased development approach for njalla-cli.
 - [x] Implement `domains` command (list-domains API)
 - [x] Implement `search` command (find-domains API)
 - [x] Implement `status` command (get-domain API)
-- [x] Add table and JSON output formatting
+- [x] Add JSON output formatting
 - [x] Write integration tests
 
 ---
@@ -130,7 +130,7 @@ cargo test --lib
 ### Rust
 - Use `rustfmt` defaults
 - Use `clippy` with `-D warnings`
-- Prefer `thiserror` for error types
+- Use manual `Display` and `Error` impls for error types
 - Use `?` for error propagation
 - Document public APIs with `///`
 

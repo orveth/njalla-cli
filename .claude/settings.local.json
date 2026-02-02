@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo test:*)",
+      "Bash(nix develop:*)",
+      "Bash(~/.cargo/bin/cargo test --no-run)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(direnv allow:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(direnv exec . cargo test:*)",
+      "Bash(openclaw:*)",
+      "Bash(curl:*)",
+      "Bash(nix flake check:*)",
+      "Bash(cargo check:*)"
+    ]
+  }
+}

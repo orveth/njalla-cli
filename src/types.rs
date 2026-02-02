@@ -3,7 +3,6 @@
 //! These types map directly to the Njalla API JSON structures.
 //! See `docs/API.md` for full API documentation.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 // ============================================================================
@@ -19,9 +18,9 @@ pub struct Domain {
     /// Domain status (e.g., "active", "pending").
     pub status: String,
 
-    /// Expiration date.
+    /// Expiration date (ISO 8601 format).
     #[serde(default)]
-    pub expiry: Option<DateTime<Utc>>,
+    pub expiry: Option<String>,
 
     /// Whether the domain is locked for transfer.
     #[serde(default)]

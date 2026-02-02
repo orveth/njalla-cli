@@ -2,20 +2,17 @@
 
 use crate::client::NjallaClient;
 use crate::error::Result;
-use crate::output::{
-    format_payment, format_transactions, format_wallet_balance, OutputFormat,
-};
+use crate::output::{format_payment, format_transactions, format_wallet_balance};
 use crate::types::PaymentMethod;
 
 /// Run the balance command.
 ///
 /// Shows the current wallet balance.
-pub async fn run_balance(output: &str, debug: bool) -> Result<()> {
+pub fn run_balance(debug: bool) -> Result<()> {
     let client = NjallaClient::new(debug)?;
-    let format: OutputFormat = output.parse().expect("infallible");
 
-    let balance = client.get_balance().await?;
-    let formatted = format_wallet_balance(&balance, format)?;
+    let balance = client.get_balance()?;
+    let formatted = format_wallet_balance(&balance)?;
     println!("{formatted}");
 
     Ok(())
@@ -24,12 +21,11 @@ pub async fn run_balance(output: &str, debug: bool) -> Result<()> {
 /// Run the add-payment command.
 ///
 /// Creates a new payment to refill the wallet.
-pub async fn run_add_payment(amount: i32, via: PaymentMethod, output: &str, debug: bool) -> Result<()> {
+pub fn run_add_payment(amount: i32, via: PaymentMethod, debug: bool) -> Result<()> {
     let client = NjallaClient::new(debug)?;
-    let format: OutputFormat = output.parse().expect("infallible");
 
-    let payment = client.add_payment(amount, via).await?;
-    let formatted = format_payment(&payment, format)?;
+    let payment = client.add_payment(amount, via)?;
+    let formatted = format_payment(&payment)?;
     println!("{formatted}");
 
     Ok(())
@@ -38,12 +34,11 @@ pub async fn run_add_payment(amount: i32, via: PaymentMethod, output: &str, debu
 /// Run the get-payment command.
 ///
 /// Gets details about a specific payment.
-pub async fn run_get_payment(id: &str, output: &str, debug: bool) -> Result<()> {
+pub fn run_get_payment(id: &str, debug: bool) -> Result<()> {
     let client = NjallaClient::new(debug)?;
-    let format: OutputFormat = output.parse().expect("infallible");
 
-    let payment = client.get_payment(id).await?;
-    let formatted = format_payment(&payment, format)?;
+    let payment = client.get_payment(id)?;
+    let formatted = format_payment(&payment)?;
     println!("{formatted}");
 
     Ok(())
@@ -52,12 +47,11 @@ pub async fn run_get_payment(id: &str, output: &str, debug: bool) -> Result<()> 
 /// Run the transactions command.
 ///
 /// Lists transactions from the last 90 days.
-pub async fn run_transactions(output: &str, debug: bool) -> Result<()> {
+pub fn run_transactions(debug: bool) -> Result<()> {
     let client = NjallaClient::new(debug)?;
-    let format: OutputFormat = output.parse().expect("infallible");
 
-    let transactions = client.list_transactions().await?;
-    let formatted = format_transactions(&transactions, format)?;
+    let transactions = client.list_transactions()?;
+    let formatted = format_transactions(&transactions)?;
     println!("{formatted}");
 
     Ok(())

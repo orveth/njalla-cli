@@ -1,31 +1,26 @@
 //! Error types for njalla-cli.
 
-use thiserror::Error;
+use std::fmt;
 
 /// All errors that can occur in njalla-cli.
-#[derive(Error, Debug)]
+#[derive(Debug)]
 pub enum NjallaError {
     /// API token not found.
-    #[error("No API token found. Set NJALLA_API_TOKEN or add api_token to ./config.toml")]
     MissingToken,
 
     /// HTTP request failed.
-    #[error("Request failed: {0}")]
-    Request(#[from] reqwest::Error),
+    Request(reqwest::Error),
 
     /// API returned an error response.
-    #[error("API error: {message}")]
     Api {
         /// Error message from the API.
         message: String,
     },
 
     /// Domain is not available for registration.
-    #[error("Domain not available: {0}")]
     DomainNotAvailable(String),
 
     /// Registration timed out waiting for completion.
-    #[error("Registration timeout for {domain} after {timeout_secs}s")]
     RegistrationTimeout {
         /// Domain being registered.
         domain: String,
@@ -34,19 +29,59 @@ pub enum NjallaError {
     },
 
     /// JSON parsing failed.
-    #[error("Failed to parse response: {0}")]
-    Parse(#[from] serde_json::Error),
+    Parse(serde_json::Error),
 
     /// Command not yet implemented.
-    #[error("Not implemented: {0}")]
     NotImplemented(String),
 
     /// Configuration error.
-    #[error("Config error: {message}")]
     Config {
         /// Error message.
         message: String,
     },
+}
+
+impl fmt::Display for NjallaError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MissingToken => write!(
+                f,
+                "No API token found. Set NJALLA_API_TOKEN or add api_token to ./config.toml"
+            ),
+            Self::Request(e) => write!(f, "Request failed: {e}"),
+            Self::Api { message } => write!(f, "API error: {message}"),
+            Self::DomainNotAvailable(s) => write!(f, "Domain not available: {s}"),
+            Self::RegistrationTimeout {
+                domain,
+                timeout_secs,
+            } => write!(f, "Registration timeout for {domain} after {timeout_secs}s"),
+            Self::Parse(e) => write!(f, "Failed to parse response: {e}"),
+            Self::NotImplemented(s) => write!(f, "Not implemented: {s}"),
+            Self::Config { message } => write!(f, "Config error: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for NjallaError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Request(e) => Some(e),
+            Self::Parse(e) => Some(e),
+            _ => None,
+        }
+    }
+}
+
+impl From<reqwest::Error> for NjallaError {
+    fn from(err: reqwest::Error) -> Self {
+        Self::Request(err)
+    }
+}
+
+impl From<serde_json::Error> for NjallaError {
+    fn from(err: serde_json::Error) -> Self {
+        Self::Parse(err)
+    }
 }
 
 /// Result type alias using `NjallaError`.

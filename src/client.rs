@@ -19,7 +19,7 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 /// Njalla API client.
 pub struct NjallaClient {
     /// HTTP client.
-    client: reqwest::Client,
+    client: reqwest::blocking::Client,
 
     /// API token.
     token: String,
@@ -46,7 +46,7 @@ impl NjallaClient {
         let config = Config::load()?;
         let token = config.api_token()?.to_string();
 
-        let client = reqwest::Client::builder()
+        let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()?;
 
@@ -61,7 +61,7 @@ impl NjallaClient {
     /// Create a new client with a custom base URL (for testing).
     #[cfg(test)]
     pub fn with_base_url(token: &str, base_url: &str) -> Result<Self> {
-        let client = reqwest::Client::builder()
+        let client = reqwest::blocking::Client::builder()
             .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECS))
             .build()?;
 
@@ -78,29 +78,28 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the request fails or the API returns an error.
-    async fn request<T: for<'de> serde::Deserialize<'de>>(
+    fn request<T: for<'de> serde::Deserialize<'de>>(
         &self,
         method: &str,
         params: serde_json::Value,
     ) -> Result<T> {
-        let request = ApiRequest {
-            method: method.to_string(),
-            params: params.clone(),
-        };
-
         if self.debug {
             eprintln!("[DEBUG] Request: {method} {params:?}");
         }
+
+        let request = ApiRequest {
+            method: method.to_string(),
+            params,
+        };
 
         let response = self
             .client
             .post(&self.base_url)
             .header("Authorization", format!("Njalla {}", self.token))
             .json(&request)
-            .send()
-            .await?;
+            .send()?;
 
-        let response_text = response.text().await?;
+        let response_text = response.text()?;
 
         if self.debug {
             eprintln!("[DEBUG] Response: {response_text}");
@@ -128,10 +127,8 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    pub async fn list_domains(&self) -> Result<Vec<Domain>> {
-        let result: DomainsResult = self
-            .request("list-domains", serde_json::json!({}))
-            .await?;
+    pub fn list_domains(&self) -> Result<Vec<Domain>> {
+        let result: DomainsResult = self.request("list-domains", serde_json::json!({}))?;
         Ok(result.domains)
     }
 
@@ -140,9 +137,8 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the domain is not found.
-    pub async fn get_domain(&self, domain: &str) -> Result<Domain> {
+    pub fn get_domain(&self, domain: &str) -> Result<Domain> {
         self.request("get-domain", serde_json::json!({ "domain": domain }))
-            .await
     }
 
     /// Search for available domains.
@@ -150,10 +146,9 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    pub async fn find_domains(&self, query: &str) -> Result<Vec<MarketDomain>> {
-        let result: MarketDomainsResult = self
-            .request("find-domains", serde_json::json!({ "query": query }))
-            .await?;
+    pub fn find_domains(&self, query: &str) -> Result<Vec<MarketDomain>> {
+        let result: MarketDomainsResult =
+            self.request("find-domains", serde_json::json!({ "query": query }))?;
         Ok(result.domains)
     }
 
@@ -166,13 +161,11 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the domain is unavailable.
-    pub async fn register_domain(&self, domain: &str, years: i32) -> Result<String> {
-        let result: RegisterResult = self
-            .request(
-                "register-domain",
-                serde_json::json!({ "domain": domain, "years": years }),
-            )
-            .await?;
+    pub fn register_domain(&self, domain: &str, years: i32) -> Result<String> {
+        let result: RegisterResult = self.request(
+            "register-domain",
+            serde_json::json!({ "domain": domain, "years": years }),
+        )?;
         Ok(result.task)
     }
 
@@ -181,9 +174,8 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the task is not found.
-    pub async fn check_task(&self, task_id: &str) -> Result<TaskStatus> {
+    pub fn check_task(&self, task_id: &str) -> Result<TaskStatus> {
         self.request("check-task", serde_json::json!({ "id": task_id }))
-            .await
     }
 
     // ========================================================================
@@ -195,10 +187,9 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    pub async fn list_records(&self, domain: &str) -> Result<Vec<Record>> {
-        let result: RecordsResult = self
-            .request("list-records", serde_json::json!({ "domain": domain }))
-            .await?;
+    pub fn list_records(&self, domain: &str) -> Result<Vec<Record>> {
+        let result: RecordsResult =
+            self.request("list-records", serde_json::json!({ "domain": domain }))?;
         Ok(result.records)
     }
 
@@ -211,8 +202,8 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    pub async fn get_balance(&self) -> Result<WalletBalance> {
-        self.request("get-balance", serde_json::json!({})).await
+    pub fn get_balance(&self) -> Result<WalletBalance> {
+        self.request("get-balance", serde_json::json!({}))
     }
 
     /// Add payment to refill wallet.
@@ -225,7 +216,7 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or parameters are invalid.
-    pub async fn add_payment(&self, amount: i32, via: PaymentMethod) -> Result<Payment> {
+    pub fn add_payment(&self, amount: i32, via: PaymentMethod) -> Result<Payment> {
         self.request(
             "add-payment",
             serde_json::json!({
@@ -233,7 +224,6 @@ impl NjallaClient {
                 "via": via.to_string()
             }),
         )
-        .await
     }
 
     /// Get details about a payment.
@@ -241,9 +231,8 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the payment is not found.
-    pub async fn get_payment(&self, id: &str) -> Result<Payment> {
+    pub fn get_payment(&self, id: &str) -> Result<Payment> {
         self.request("get-payment", serde_json::json!({ "id": id }))
-            .await
     }
 
     /// List transactions from the last 90 days.
@@ -251,10 +240,9 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    pub async fn list_transactions(&self) -> Result<Vec<Transaction>> {
-        let result: TransactionsResult = self
-            .request("list-transactions", serde_json::json!({}))
-            .await?;
+    pub fn list_transactions(&self) -> Result<Vec<Transaction>> {
+        let result: TransactionsResult =
+            self.request("list-transactions", serde_json::json!({}))?;
         Ok(result.transactions)
     }
 }
@@ -263,184 +251,205 @@ impl NjallaClient {
 mod tests {
     use super::*;
     use crate::types::PaymentMethod;
+    use std::sync::LazyLock;
     use wiremock::matchers::{body_json_string, header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    #[tokio::test]
-    async fn request_sends_correct_headers() {
-        let mock_server = MockServer::start().await;
+    // wiremock requires tokio runtime for MockServer
+    static RT: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+    });
 
-        Mock::given(method("POST"))
-            .and(header("Authorization", "Njalla test-token"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": { "domains": [] }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+    fn mock_server() -> MockServer {
+        RT.block_on(MockServer::start())
+    }
+
+    fn mount(server: &MockServer, mock: Mock) {
+        RT.block_on(mock.mount(server));
+    }
+
+    #[test]
+    fn request_sends_correct_headers() {
+        let mock_server = mock_server();
+
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(header("Authorization", "Njalla test-token"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": { "domains": [] }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("test-token", &mock_server.uri()).unwrap();
 
         let result: std::result::Result<serde_json::Value, _> =
-            client.request("list-domains", serde_json::json!({})).await;
+            client.request("list-domains", serde_json::json!({}));
 
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn request_handles_api_error() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn request_handles_api_error() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "error": { "message": "Invalid token" }
-            })))
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST")).respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "error": { "message": "Invalid token" }
+                })),
+            ),
+        );
 
         let client = NjallaClient::with_base_url("bad-token", &mock_server.uri()).unwrap();
 
         let result: std::result::Result<serde_json::Value, _> =
-            client.request("list-domains", serde_json::json!({})).await;
+            client.request("list-domains", serde_json::json!({}));
 
         assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Invalid token"));
     }
 
-    #[tokio::test]
-    async fn request_sends_correct_body() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn request_sends_correct_body() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"test-method","params":{"key":"value"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {}
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"test-method","params":{"key":"value"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {}
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
 
-        let result: std::result::Result<serde_json::Value, _> = client
-            .request("test-method", serde_json::json!({"key": "value"}))
-            .await;
+        let result: std::result::Result<serde_json::Value, _> =
+            client.request("test-method", serde_json::json!({"key": "value"}));
 
         assert!(result.is_ok());
     }
 
-    #[tokio::test]
-    async fn get_balance_returns_balance() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn get_balance_returns_balance() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(r#"{"method":"get-balance","params":{}}"#))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": { "balance": 42 }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(r#"{"method":"get-balance","params":{}}"#))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": { "balance": 42 }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let balance = client.get_balance().await.unwrap();
+        let balance = client.get_balance().unwrap();
 
         assert_eq!(balance.balance, 42);
     }
 
-    #[tokio::test]
-    async fn add_payment_sends_correct_params() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn add_payment_sends_correct_params() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"add-payment","params":{"amount":15,"via":"bitcoin"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "id": "pay123",
-                    "amount": 15,
-                    "address": "bc1qtest..."
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"add-payment","params":{"amount":15,"via":"bitcoin"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "pay123",
+                        "amount": 15,
+                        "address": "bc1qtest..."
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let payment = client
-            .add_payment(15, PaymentMethod::Bitcoin)
-            .await
-            .unwrap();
+        let payment = client.add_payment(15, PaymentMethod::Bitcoin).unwrap();
 
         assert_eq!(payment.amount, 15);
         assert_eq!(payment.id, Some("pay123".to_string()));
         assert_eq!(payment.address, Some("bc1qtest...".to_string()));
     }
 
-    #[tokio::test]
-    async fn get_payment_sends_id() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn get_payment_sends_id() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"get-payment","params":{"id":"pay456"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "id": "pay456",
-                    "amount": 30,
-                    "status": "completed"
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"get-payment","params":{"id":"pay456"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "pay456",
+                        "amount": 30,
+                        "status": "completed"
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let payment = client.get_payment("pay456").await.unwrap();
+        let payment = client.get_payment("pay456").unwrap();
 
         assert_eq!(payment.id, Some("pay456".to_string()));
         assert_eq!(payment.status, Some("completed".to_string()));
     }
 
-    #[tokio::test]
-    async fn list_transactions_unwraps_result() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn list_transactions_unwraps_result() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"list-transactions","params":{}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "transactions": [
-                        {
-                            "id": "tx1",
-                            "amount": 50,
-                            "status": "Added 50 € via Bitcoin",
-                            "completed": "2026-01-15",
-                            "pdf": "https://njal.la/invoice/tx1/"
-                        },
-                        {
-                            "id": "tx2",
-                            "amount": 15,
-                            "status": "Waiting for transaction",
-                            "uri": "bitcoin:bc1qtest",
-                            "address": "bc1qtest",
-                            "currency": "EUR",
-                            "amount_btc": "0.0002"
-                        }
-                    ]
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"list-transactions","params":{}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "transactions": [
+                            {
+                                "id": "tx1",
+                                "amount": 50,
+                                "status": "Added 50 € via Bitcoin",
+                                "completed": "2026-01-15",
+                                "pdf": "https://njal.la/invoice/tx1/"
+                            },
+                            {
+                                "id": "tx2",
+                                "amount": 15,
+                                "status": "Waiting for transaction",
+                                "uri": "bitcoin:bc1qtest",
+                                "address": "bc1qtest",
+                                "currency": "EUR",
+                                "amount_btc": "0.0002"
+                            }
+                        ]
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let transactions = client.list_transactions().await.unwrap();
+        let transactions = client.list_transactions().unwrap();
 
         assert_eq!(transactions.len(), 2);
         assert_eq!(transactions[0].id, "tx1");
@@ -454,34 +463,35 @@ mod tests {
     // Domain Methods Tests
     // ========================================================================
 
-    #[tokio::test]
-    async fn list_domains_returns_domains() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn list_domains_returns_domains() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "domains": [
-                        {
-                            "name": "example.com",
-                            "status": "active",
-                            "expiry": "2027-01-15T00:00:00Z",
-                            "locked": false
-                        },
-                        {
-                            "name": "test.org",
-                            "status": "pending"
-                        }
-                    ]
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "domains": [
+                            {
+                                "name": "example.com",
+                                "status": "active",
+                                "expiry": "2027-01-15T00:00:00Z",
+                                "locked": false
+                            },
+                            {
+                                "name": "test.org",
+                                "status": "pending"
+                            }
+                        ]
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let domains = client.list_domains().await.unwrap();
+        let domains = client.list_domains().unwrap();
 
         assert_eq!(domains.len(), 2);
         assert_eq!(domains[0].name, "example.com");
@@ -490,49 +500,51 @@ mod tests {
         assert_eq!(domains[1].status, "pending");
     }
 
-    #[tokio::test]
-    async fn list_domains_empty() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn list_domains_empty() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": { "domains": [] }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": { "domains": [] }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let domains = client.list_domains().await.unwrap();
+        let domains = client.list_domains().unwrap();
 
         assert!(domains.is_empty());
     }
 
-    #[tokio::test]
-    async fn get_domain_returns_details() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn get_domain_returns_details() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"get-domain","params":{"domain":"example.com"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "name": "example.com",
-                    "status": "active",
-                    "expiry": "2027-01-15T00:00:00Z",
-                    "locked": true,
-                    "mailforwarding": false,
-                    "max_nameservers": 4
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"get-domain","params":{"domain":"example.com"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "name": "example.com",
+                        "status": "active",
+                        "expiry": "2027-01-15T00:00:00Z",
+                        "locked": true,
+                        "mailforwarding": false,
+                        "max_nameservers": 4
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let domain = client.get_domain("example.com").await.unwrap();
+        let domain = client.get_domain("example.com").unwrap();
 
         assert_eq!(domain.name, "example.com");
         assert_eq!(domain.status, "active");
@@ -541,50 +553,52 @@ mod tests {
         assert_eq!(domain.max_nameservers, Some(4));
     }
 
-    #[tokio::test]
-    async fn get_domain_not_found() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn get_domain_not_found() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"get-domain","params":{"domain":"notfound.com"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "error": { "message": "Domain not found" }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"get-domain","params":{"domain":"notfound.com"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "error": { "message": "Domain not found" }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let result = client.get_domain("notfound.com").await;
+        let result = client.get_domain("notfound.com");
 
         assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Domain not found"));
     }
 
-    #[tokio::test]
-    async fn find_domains_returns_search_results() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn find_domains_returns_search_results() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"find-domains","params":{"query":"example"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "domains": [
-                        { "name": "example.com", "status": "available", "price": 15 },
-                        { "name": "example.net", "status": "taken", "price": 15 },
-                        { "name": "example.org", "status": "available", "price": 18 }
-                    ]
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"find-domains","params":{"query":"example"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "domains": [
+                            { "name": "example.com", "status": "available", "price": 15 },
+                            { "name": "example.net", "status": "taken", "price": 15 },
+                            { "name": "example.org", "status": "available", "price": 18 }
+                        ]
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let results = client.find_domains("example").await.unwrap();
+        let results = client.find_domains("example").unwrap();
 
         assert_eq!(results.len(), 3);
         assert_eq!(results[0].name, "example.com");
@@ -594,50 +608,51 @@ mod tests {
         assert_eq!(results[2].price, 18);
     }
 
-    #[tokio::test]
-    async fn list_records_returns_dns_records() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn list_records_returns_dns_records() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"list-records","params":{"domain":"example.com"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "records": [
-                        {
-                            "id": "rec1",
-                            "name": "@",
-                            "type": "A",
-                            "content": "192.0.2.1",
-                            "ttl": 10800,
-                            "prio": null
-                        },
-                        {
-                            "id": "rec2",
-                            "name": "www",
-                            "type": "CNAME",
-                            "content": "example.com",
-                            "ttl": 3600,
-                            "prio": null
-                        },
-                        {
-                            "id": "rec3",
-                            "name": "@",
-                            "type": "MX",
-                            "content": "mail.example.com",
-                            "ttl": 10800,
-                            "prio": 10
-                        }
-                    ]
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"list-records","params":{"domain":"example.com"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "records": [
+                            {
+                                "id": "rec1",
+                                "name": "@",
+                                "type": "A",
+                                "content": "192.0.2.1",
+                                "ttl": 10800,
+                                "prio": null
+                            },
+                            {
+                                "id": "rec2",
+                                "name": "www",
+                                "type": "CNAME",
+                                "content": "example.com",
+                                "ttl": 3600,
+                                "prio": null
+                            },
+                            {
+                                "id": "rec3",
+                                "name": "@",
+                                "type": "MX",
+                                "content": "mail.example.com",
+                                "ttl": 10800,
+                                "prio": 10
+                            }
+                        ]
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let records = client.list_records("example.com").await.unwrap();
+        let records = client.list_records("example.com").unwrap();
 
         assert_eq!(records.len(), 3);
         assert_eq!(records[0].id, "rec1");
@@ -653,118 +668,123 @@ mod tests {
     // Registration Methods Tests
     // ========================================================================
 
-    #[tokio::test]
-    async fn register_domain_returns_task_id() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn register_domain_returns_task_id() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"register-domain","params":{"domain":"newdomain.com","years":1}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": { "task": "task-abc123" }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"register-domain","params":{"domain":"newdomain.com","years":1}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": { "task": "task-abc123" }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let task_id = client.register_domain("newdomain.com", 1).await.unwrap();
+        let task_id = client.register_domain("newdomain.com", 1).unwrap();
 
         assert_eq!(task_id, "task-abc123");
     }
 
-    #[tokio::test]
-    async fn register_domain_insufficient_funds() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn register_domain_insufficient_funds() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"register-domain","params":{"domain":"expensive.com","years":2}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "error": { "message": "Insufficient funds" }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"register-domain","params":{"domain":"expensive.com","years":2}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "error": { "message": "Insufficient funds" }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let result = client.register_domain("expensive.com", 2).await;
+        let result = client.register_domain("expensive.com", 2);
 
         assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Insufficient funds"));
     }
 
-    #[tokio::test]
-    async fn check_task_returns_completed_status() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn check_task_returns_completed_status() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"check-task","params":{"id":"task-abc123"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "id": "task-abc123",
-                    "status": "completed"
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"check-task","params":{"id":"task-abc123"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "task-abc123",
+                        "status": "completed"
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let status = client.check_task("task-abc123").await.unwrap();
+        let status = client.check_task("task-abc123").unwrap();
 
         assert_eq!(status.id, "task-abc123");
         assert_eq!(status.status, "completed");
     }
 
-    #[tokio::test]
-    async fn check_task_returns_pending_status() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn check_task_returns_pending_status() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"check-task","params":{"id":"task-xyz789"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "id": "task-xyz789",
-                    "status": "pending"
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"check-task","params":{"id":"task-xyz789"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "task-xyz789",
+                        "status": "pending"
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let status = client.check_task("task-xyz789").await.unwrap();
+        let status = client.check_task("task-xyz789").unwrap();
 
         assert_eq!(status.id, "task-xyz789");
         assert_eq!(status.status, "pending");
     }
 
-    #[tokio::test]
-    async fn check_task_returns_failed_status() {
-        let mock_server = MockServer::start().await;
+    #[test]
+    fn check_task_returns_failed_status() {
+        let mock_server = mock_server();
 
-        Mock::given(method("POST"))
-            .and(body_json_string(
-                r#"{"method":"check-task","params":{"id":"task-fail"}}"#,
-            ))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "result": {
-                    "id": "task-fail",
-                    "status": "failed"
-                }
-            })))
-            .expect(1)
-            .mount(&mock_server)
-            .await;
+        mount(
+            &mock_server,
+            Mock::given(method("POST"))
+                .and(body_json_string(
+                    r#"{"method":"check-task","params":{"id":"task-fail"}}"#,
+                ))
+                .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                    "result": {
+                        "id": "task-fail",
+                        "status": "failed"
+                    }
+                })))
+                .expect(1),
+        );
 
         let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
-        let status = client.check_task("task-fail").await.unwrap();
+        let status = client.check_task("task-fail").unwrap();
 
         assert_eq!(status.id, "task-fail");
         assert_eq!(status.status, "failed");
