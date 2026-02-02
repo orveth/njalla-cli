@@ -15,6 +15,10 @@ Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust
 - Wallet balance and payments (BTC only)
 - JSON output for scripting
 
+## Why This CLI?
+
+**Fully synchronous** - No async runtime. Uses [bitreq](https://crates.io/crates/bitreq) for HTTP, resulting in fast compile times and a small binary (~2.3MB stripped).
+
 ## Installation
 
 ```bash

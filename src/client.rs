@@ -18,9 +18,6 @@ pub const DEFAULT_TIMEOUT_SECS: u64 = 30;
 
 /// Njalla API client.
 pub struct NjallaClient {
-    /// HTTP client.
-    client: reqwest::blocking::Client,
-
     /// API token.
     token: String,
 
@@ -41,17 +38,11 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns `NjallaError::MissingToken` if no token is configured.
-    /// Returns `NjallaError::Request` if the HTTP client fails to build.
     pub fn new(debug: bool) -> Result<Self> {
         let config = Config::load()?;
         let token = config.api_token()?.to_string();
 
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
-
         Ok(Self {
-            client,
             token,
             base_url: API_ENDPOINT.to_string(),
             debug,
@@ -60,17 +51,12 @@ impl NjallaClient {
 
     /// Create a new client with a custom base URL (for testing).
     #[cfg(test)]
-    pub fn with_base_url(token: &str, base_url: &str) -> Result<Self> {
-        let client = reqwest::blocking::Client::builder()
-            .timeout(std::time::Duration::from_secs(DEFAULT_TIMEOUT_SECS))
-            .build()?;
-
-        Ok(Self {
-            client,
+    pub fn with_base_url(token: &str, base_url: &str) -> Self {
+        Self {
             token: token.to_string(),
             base_url: base_url.to_string(),
             debug: false,
-        })
+        }
     }
 
     /// Make an API request.
@@ -83,29 +69,31 @@ impl NjallaClient {
         method: &str,
         params: serde_json::Value,
     ) -> Result<T> {
-        if self.debug {
-            eprintln!("[DEBUG] Request: {method} {params:?}");
-        }
-
-        let request = ApiRequest {
+        let request_body = ApiRequest {
             method: method.to_string(),
             params,
         };
 
-        let response = self
-            .client
-            .post(&self.base_url)
-            .header("Authorization", format!("Njalla {}", self.token))
-            .json(&request)
+        let body = serde_json::to_string(&request_body)?;
+
+        if self.debug {
+            eprintln!("[DEBUG] Request: {method} {body}");
+        }
+
+        let response = bitreq::post(&self.base_url)
+            .with_header("Authorization", format!("Njalla {}", self.token))
+            .with_header("Content-Type", "application/json")
+            .with_body(body.into_bytes())
+            .with_timeout(DEFAULT_TIMEOUT_SECS)
             .send()?;
 
-        let response_text = response.text()?;
+        let response_text = response.as_str()?;
 
         if self.debug {
             eprintln!("[DEBUG] Response: {response_text}");
         }
 
-        let api_response: ApiResponse<T> = serde_json::from_str(&response_text)?;
+        let api_response: ApiResponse<T> = serde_json::from_str(response_text)?;
 
         if let Some(error) = api_response.error {
             return Err(NjallaError::Api {
@@ -285,7 +273,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("test-token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("test-token", &mock_server.uri());
 
         let result: std::result::Result<serde_json::Value, _> =
             client.request("list-domains", serde_json::json!({}));
@@ -306,7 +294,7 @@ mod tests {
             ),
         );
 
-        let client = NjallaClient::with_base_url("bad-token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("bad-token", &mock_server.uri());
 
         let result: std::result::Result<serde_json::Value, _> =
             client.request("list-domains", serde_json::json!({}));
@@ -330,7 +318,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
 
         let result: std::result::Result<serde_json::Value, _> =
             client.request("test-method", serde_json::json!({"key": "value"}));
@@ -352,7 +340,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let balance = client.get_balance().unwrap();
 
         assert_eq!(balance.balance, 42);
@@ -378,7 +366,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let payment = client.add_payment(15, PaymentMethod::Bitcoin).unwrap();
 
         assert_eq!(payment.amount, 15);
@@ -406,7 +394,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let payment = client.get_payment("pay456").unwrap();
 
         assert_eq!(payment.id, Some("pay456".to_string()));
@@ -448,7 +436,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let transactions = client.list_transactions().unwrap();
 
         assert_eq!(transactions.len(), 2);
@@ -490,7 +478,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let domains = client.list_domains().unwrap();
 
         assert_eq!(domains.len(), 2);
@@ -514,7 +502,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let domains = client.list_domains().unwrap();
 
         assert!(domains.is_empty());
@@ -543,7 +531,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let domain = client.get_domain("example.com").unwrap();
 
         assert_eq!(domain.name, "example.com");
@@ -569,7 +557,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let result = client.get_domain("notfound.com");
 
         assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Domain not found"));
@@ -597,7 +585,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let results = client.find_domains("example").unwrap();
 
         assert_eq!(results.len(), 3);
@@ -651,7 +639,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let records = client.list_records("example.com").unwrap();
 
         assert_eq!(records.len(), 3);
@@ -684,7 +672,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let task_id = client.register_domain("newdomain.com", 1).unwrap();
 
         assert_eq!(task_id, "task-abc123");
@@ -706,7 +694,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let result = client.register_domain("expensive.com", 2);
 
         assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Insufficient funds"));
@@ -731,7 +719,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let status = client.check_task("task-abc123").unwrap();
 
         assert_eq!(status.id, "task-abc123");
@@ -757,7 +745,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let status = client.check_task("task-xyz789").unwrap();
 
         assert_eq!(status.id, "task-xyz789");
@@ -783,7 +771,7 @@ mod tests {
                 .expect(1),
         );
 
-        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let client = NjallaClient::with_base_url("token", &mock_server.uri());
         let status = client.check_task("task-fail").unwrap();
 
         assert_eq!(status.id, "task-fail");

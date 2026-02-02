@@ -9,7 +9,7 @@ pub enum NjallaError {
     MissingToken,
 
     /// HTTP request failed.
-    Request(reqwest::Error),
+    Request(bitreq::Error),
 
     /// API returned an error response.
     Api {
@@ -72,8 +72,8 @@ impl std::error::Error for NjallaError {
     }
 }
 
-impl From<reqwest::Error> for NjallaError {
-    fn from(err: reqwest::Error) -> Self {
+impl From<bitreq::Error> for NjallaError {
+    fn from(err: bitreq::Error) -> Self {
         Self::Request(err)
     }
 }

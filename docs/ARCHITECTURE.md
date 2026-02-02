@@ -48,12 +48,14 @@ High-level design of njalla-cli.
 - Document each type's purpose and API mapping
 
 ### client.rs
-- `NjallaClient` struct with reqwest client
+- `NjallaClient` struct (stateless, uses bitreq)
 - `new()` - Initialize from environment
 - `request()` - Generic JSON-RPC caller
 - Domain methods: list, get, find, register
 - Task methods: check_task
 - Record methods: list, add, edit, remove
+
+The client uses [bitreq](https://crates.io/crates/bitreq), a fully synchronous HTTP client with minimal dependencies. This eliminates tokio from the runtime, resulting in faster compile times and smaller binaries.
 
 ### output.rs
 - Format data as JSON for consistent, scriptable output
@@ -129,7 +131,7 @@ fn test_list_domains() {
 
 ### Runtime
 - `clap` - CLI argument parsing
-- `reqwest` - HTTP client (blocking)
+- `bitreq` - HTTP client
 - `serde` / `serde_json` - JSON handling
 
 ### Development
