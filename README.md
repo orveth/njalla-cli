@@ -5,7 +5,7 @@
 
 Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust.
 
-> **Disclaimer:** This is an unofficial project and is not affiliated with or endorsed by Njalla. Use at your own risk. Always verify important operations through the official Njalla web interface.
+> **Disclaimer:** This is an unofficial project and is not affiliated with or endorsed by Njalla. Use at your own risk. Always verify important operations through the official Njalla web interface. See the [Njalla API documentation](https://njal.la/api/) for details on the underlying API.
 
 ## Features
 
@@ -41,6 +41,29 @@ nix run github:orveth/njalla-cli
 cargo build --release
 ```
 
+### NixOS Module
+
+```nix
+{
+  inputs.njalla.url = "github:orveth/njalla-cli";
+
+  outputs = { nixpkgs, njalla, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      modules = [
+        njalla.nixosModules.default
+        {
+          programs.njalla = {
+            enable = true;
+            package = njalla.packages.x86_64-linux.default;
+            secretsFile = "/run/secrets/njalla"; # optional, contains NJALLA_API_TOKEN=...
+          };
+        }
+      ];
+    };
+  };
+}
+```
+
 ## Configuration
 
 Get your API token from https://njal.la/settings/api/
@@ -63,30 +86,47 @@ njalla search example   # Search available domains
 njalla wallet balance   # Check wallet balance
 ```
 
-### DNS Management
+### Full CLI Reference
 
-```bash
-# List DNS records
-njalla dns list example.com
+```
+$ njalla --help
+Usage: njalla [OPTIONS] <COMMAND>
 
-# Add an A record
-njalla dns add example.com -t a -n @ -c 1.2.3.4 --ttl 3600
+Commands:
+  domains   List all domains in your account
+  search    Search for available domains
+  register  Register a new domain
+  status    Check domain status and details
+  config    Show or initialize configuration
+  dns       Manage DNS records for a domain
+  wallet    Manage wallet and payments
+  help      Print this message or the help of the given subcommand(s)
 
-# Add an MX record with priority
-njalla dns add example.com -t mx -n @ -c mail.example.com --ttl 3600 -p 10
+Options:
+      --debug    Enable debug mode to see raw API responses
+  -h, --help     Print help (see a summary with '-h')
+  -V, --version  Print version
 
-# Add an SRV record
-njalla dns add example.com -t srv -n _sip._tcp -c sipserver.example.com \
-  --ttl 3600 -p 10 -w 5 --port 5060
+CONFIGURATION:
+    Get your API token from https://njal.la/settings/api/
 
-# Add a Dynamic DNS record
-njalla dns add example.com -t dynamic -n home
+    Option 1: Config file (recommended)
+        njalla config --init    # Creates ./config.toml
+        Edit the file to add your token
 
-# Edit a record
-njalla dns edit example.com --id 1337 -c 5.6.7.8 --ttl 300
+    Option 2: Environment variable
+        export NJALLA_API_TOKEN="your-token"
 
-# Remove a record
-njalla dns remove example.com --id 1337
+    Environment variable takes precedence over config file.
+
+EXAMPLES:
+    njalla domains                      List all your domains
+    njalla search bitcoin               Search for available domains
+    njalla register example.com         Register a domain (interactive)
+    njalla register example.com --wait  Register and wait for completion
+    njalla status example.com --dns     Show domain status with DNS records
+    njalla wallet balance               Check wallet balance
+    njalla wallet add-payment -a 15 -v btc   Add funds via Bitcoin
 ```
 
 ## Development
