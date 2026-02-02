@@ -16,7 +16,7 @@ pub async fn run_balance(output: &str, debug: bool) -> Result<()> {
 
     let balance = client.get_balance().await?;
     let formatted = format_wallet_balance(&balance, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }
@@ -30,7 +30,7 @@ pub async fn run_add_payment(amount: i32, via: PaymentMethod, output: &str, debu
 
     let payment = client.add_payment(amount, via).await?;
     let formatted = format_payment(&payment, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }
@@ -44,7 +44,7 @@ pub async fn run_get_payment(id: &str, output: &str, debug: bool) -> Result<()> 
 
     let payment = client.get_payment(id).await?;
     let formatted = format_payment(&payment, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }
@@ -58,7 +58,7 @@ pub async fn run_transactions(output: &str, debug: bool) -> Result<()> {
 
     let transactions = client.list_transactions().await?;
     let formatted = format_transactions(&transactions, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }

@@ -235,7 +235,6 @@ impl std::fmt::Display for PaymentMethod {
 
 /// Response for `list-domains`.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct DomainsResult {
     /// List of domains.
     pub domains: Vec<Domain>,
@@ -243,7 +242,6 @@ pub struct DomainsResult {
 
 /// Response for `find-domains`.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct MarketDomainsResult {
     /// List of domain search results.
     pub domains: Vec<MarketDomain>,
@@ -251,7 +249,6 @@ pub struct MarketDomainsResult {
 
 /// Response for `list-records`.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct RecordsResult {
     /// List of DNS records.
     pub records: Vec<Record>,
@@ -259,7 +256,6 @@ pub struct RecordsResult {
 
 /// Response for `register-domain`.
 #[derive(Debug, Deserialize)]
-#[allow(dead_code)]
 pub struct RegisterResult {
     /// Task ID for tracking registration.
     pub task: String,

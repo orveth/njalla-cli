@@ -13,7 +13,7 @@ pub async fn run(query: &str, output: &str, debug: bool) -> Result<()> {
 
     let results = client.find_domains(query).await?;
     let formatted = format_market_domains(&results, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }

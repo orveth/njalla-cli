@@ -22,12 +22,10 @@ pub enum NjallaError {
 
     /// Domain is not available for registration.
     #[error("Domain not available: {0}")]
-    #[allow(dead_code)]
     DomainNotAvailable(String),
 
     /// Registration timed out waiting for completion.
     #[error("Registration timeout for {domain} after {timeout_secs}s")]
-    #[allow(dead_code)]
     RegistrationTimeout {
         /// Domain being registered.
         domain: String,

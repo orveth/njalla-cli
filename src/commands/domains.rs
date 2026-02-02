@@ -13,7 +13,7 @@ pub async fn run(output: &str, debug: bool) -> Result<()> {
 
     let domains = client.list_domains().await?;
     let formatted = format_domains(&domains, format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }

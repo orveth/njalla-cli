@@ -19,7 +19,7 @@ pub async fn run(domain: &str, show_dns: bool, output: &str, debug: bool) -> Res
     };
 
     let formatted = format_domain_status(&info, records.as_deref(), format)?;
-    print!("{formatted}");
+    println!("{formatted}");
 
     Ok(())
 }

@@ -5,8 +5,9 @@
 use crate::config::Config;
 use crate::error::{NjallaError, Result};
 use crate::types::{
-    ApiRequest, ApiResponse, Domain, MarketDomain, Payment, PaymentMethod, Record, TaskStatus,
-    Transaction, TransactionsResult, WalletBalance,
+    ApiRequest, ApiResponse, Domain, DomainsResult, MarketDomain, MarketDomainsResult, Payment,
+    PaymentMethod, Record, RecordsResult, RegisterResult, TaskStatus, Transaction,
+    TransactionsResult, WalletBalance,
 };
 
 /// Njalla API endpoint.
@@ -127,10 +128,11 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    #[allow(dead_code, clippy::unused_async)]
     pub async fn list_domains(&self) -> Result<Vec<Domain>> {
-        // TODO: Implement in Phase 2
-        Err(NjallaError::NotImplemented("list_domains".to_string()))
+        let result: DomainsResult = self
+            .request("list-domains", serde_json::json!({}))
+            .await?;
+        Ok(result.domains)
     }
 
     /// Get detailed info for a specific domain.
@@ -138,10 +140,9 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the domain is not found.
-    #[allow(dead_code, clippy::unused_async)]
-    pub async fn get_domain(&self, _domain: &str) -> Result<Domain> {
-        // TODO: Implement in Phase 2
-        Err(NjallaError::NotImplemented("get_domain".to_string()))
+    pub async fn get_domain(&self, domain: &str) -> Result<Domain> {
+        self.request("get-domain", serde_json::json!({ "domain": domain }))
+            .await
     }
 
     /// Search for available domains.
@@ -149,10 +150,11 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    #[allow(dead_code, clippy::unused_async)]
-    pub async fn find_domains(&self, _query: &str) -> Result<Vec<MarketDomain>> {
-        // TODO: Implement in Phase 2
-        Err(NjallaError::NotImplemented("find_domains".to_string()))
+    pub async fn find_domains(&self, query: &str) -> Result<Vec<MarketDomain>> {
+        let result: MarketDomainsResult = self
+            .request("find-domains", serde_json::json!({ "query": query }))
+            .await?;
+        Ok(result.domains)
     }
 
     // ========================================================================
@@ -164,10 +166,14 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the domain is unavailable.
-    #[allow(dead_code, clippy::unused_async)]
-    pub async fn register_domain(&self, _domain: &str, _years: i32) -> Result<String> {
-        // TODO: Implement in Phase 4
-        Err(NjallaError::NotImplemented("register_domain".to_string()))
+    pub async fn register_domain(&self, domain: &str, years: i32) -> Result<String> {
+        let result: RegisterResult = self
+            .request(
+                "register-domain",
+                serde_json::json!({ "domain": domain, "years": years }),
+            )
+            .await?;
+        Ok(result.task)
     }
 
     /// Check task status.
@@ -175,10 +181,9 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails or the task is not found.
-    #[allow(dead_code, clippy::unused_async)]
-    pub async fn check_task(&self, _task_id: &str) -> Result<TaskStatus> {
-        // TODO: Implement in Phase 4
-        Err(NjallaError::NotImplemented("check_task".to_string()))
+    pub async fn check_task(&self, task_id: &str) -> Result<TaskStatus> {
+        self.request("check-task", serde_json::json!({ "id": task_id }))
+            .await
     }
 
     // ========================================================================
@@ -190,10 +195,11 @@ impl NjallaClient {
     /// # Errors
     ///
     /// Returns an error if the API request fails.
-    #[allow(dead_code, clippy::unused_async)]
-    pub async fn list_records(&self, _domain: &str) -> Result<Vec<Record>> {
-        // TODO: Implement in Phase 5
-        Err(NjallaError::NotImplemented("list_records".to_string()))
+    pub async fn list_records(&self, domain: &str) -> Result<Vec<Record>> {
+        let result: RecordsResult = self
+            .request("list-records", serde_json::json!({ "domain": domain }))
+            .await?;
+        Ok(result.records)
     }
 
     // ========================================================================
@@ -442,5 +448,325 @@ mod tests {
         assert_eq!(transactions[0].completed, Some("2026-01-15".to_string()));
         assert_eq!(transactions[1].status, "Waiting for transaction");
         assert!(transactions[1].completed.is_none());
+    }
+
+    // ========================================================================
+    // Domain Methods Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn list_domains_returns_domains() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "domains": [
+                        {
+                            "name": "example.com",
+                            "status": "active",
+                            "expiry": "2027-01-15T00:00:00Z",
+                            "locked": false
+                        },
+                        {
+                            "name": "test.org",
+                            "status": "pending"
+                        }
+                    ]
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let domains = client.list_domains().await.unwrap();
+
+        assert_eq!(domains.len(), 2);
+        assert_eq!(domains[0].name, "example.com");
+        assert_eq!(domains[0].status, "active");
+        assert_eq!(domains[1].name, "test.org");
+        assert_eq!(domains[1].status, "pending");
+    }
+
+    #[tokio::test]
+    async fn list_domains_empty() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(r#"{"method":"list-domains","params":{}}"#))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": { "domains": [] }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let domains = client.list_domains().await.unwrap();
+
+        assert!(domains.is_empty());
+    }
+
+    #[tokio::test]
+    async fn get_domain_returns_details() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"get-domain","params":{"domain":"example.com"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "name": "example.com",
+                    "status": "active",
+                    "expiry": "2027-01-15T00:00:00Z",
+                    "locked": true,
+                    "mailforwarding": false,
+                    "max_nameservers": 4
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let domain = client.get_domain("example.com").await.unwrap();
+
+        assert_eq!(domain.name, "example.com");
+        assert_eq!(domain.status, "active");
+        assert_eq!(domain.locked, Some(true));
+        assert_eq!(domain.mailforwarding, Some(false));
+        assert_eq!(domain.max_nameservers, Some(4));
+    }
+
+    #[tokio::test]
+    async fn get_domain_not_found() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"get-domain","params":{"domain":"notfound.com"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "error": { "message": "Domain not found" }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let result = client.get_domain("notfound.com").await;
+
+        assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Domain not found"));
+    }
+
+    #[tokio::test]
+    async fn find_domains_returns_search_results() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"find-domains","params":{"query":"example"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "domains": [
+                        { "name": "example.com", "status": "available", "price": 15 },
+                        { "name": "example.net", "status": "taken", "price": 15 },
+                        { "name": "example.org", "status": "available", "price": 18 }
+                    ]
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let results = client.find_domains("example").await.unwrap();
+
+        assert_eq!(results.len(), 3);
+        assert_eq!(results[0].name, "example.com");
+        assert_eq!(results[0].status, "available");
+        assert_eq!(results[0].price, 15);
+        assert_eq!(results[1].status, "taken");
+        assert_eq!(results[2].price, 18);
+    }
+
+    #[tokio::test]
+    async fn list_records_returns_dns_records() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"list-records","params":{"domain":"example.com"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "records": [
+                        {
+                            "id": "rec1",
+                            "name": "@",
+                            "type": "A",
+                            "content": "192.0.2.1",
+                            "ttl": 10800,
+                            "prio": null
+                        },
+                        {
+                            "id": "rec2",
+                            "name": "www",
+                            "type": "CNAME",
+                            "content": "example.com",
+                            "ttl": 3600,
+                            "prio": null
+                        },
+                        {
+                            "id": "rec3",
+                            "name": "@",
+                            "type": "MX",
+                            "content": "mail.example.com",
+                            "ttl": 10800,
+                            "prio": 10
+                        }
+                    ]
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let records = client.list_records("example.com").await.unwrap();
+
+        assert_eq!(records.len(), 3);
+        assert_eq!(records[0].id, "rec1");
+        assert_eq!(records[0].name, "@");
+        assert_eq!(records[0].record_type, "A");
+        assert_eq!(records[0].content, "192.0.2.1");
+        assert_eq!(records[0].ttl, 10800);
+        assert!(records[0].priority.is_none());
+        assert_eq!(records[2].priority, Some(10));
+    }
+
+    // ========================================================================
+    // Registration Methods Tests
+    // ========================================================================
+
+    #[tokio::test]
+    async fn register_domain_returns_task_id() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"register-domain","params":{"domain":"newdomain.com","years":1}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": { "task": "task-abc123" }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let task_id = client.register_domain("newdomain.com", 1).await.unwrap();
+
+        assert_eq!(task_id, "task-abc123");
+    }
+
+    #[tokio::test]
+    async fn register_domain_insufficient_funds() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"register-domain","params":{"domain":"expensive.com","years":2}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "error": { "message": "Insufficient funds" }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let result = client.register_domain("expensive.com", 2).await;
+
+        assert!(matches!(result, Err(NjallaError::Api { message }) if message == "Insufficient funds"));
+    }
+
+    #[tokio::test]
+    async fn check_task_returns_completed_status() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"check-task","params":{"id":"task-abc123"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "id": "task-abc123",
+                    "status": "completed"
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let status = client.check_task("task-abc123").await.unwrap();
+
+        assert_eq!(status.id, "task-abc123");
+        assert_eq!(status.status, "completed");
+    }
+
+    #[tokio::test]
+    async fn check_task_returns_pending_status() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"check-task","params":{"id":"task-xyz789"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "id": "task-xyz789",
+                    "status": "pending"
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let status = client.check_task("task-xyz789").await.unwrap();
+
+        assert_eq!(status.id, "task-xyz789");
+        assert_eq!(status.status, "pending");
+    }
+
+    #[tokio::test]
+    async fn check_task_returns_failed_status() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("POST"))
+            .and(body_json_string(
+                r#"{"method":"check-task","params":{"id":"task-fail"}}"#,
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "result": {
+                    "id": "task-fail",
+                    "status": "failed"
+                }
+            })))
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        let client = NjallaClient::with_base_url("token", &mock_server.uri()).unwrap();
+        let status = client.check_task("task-fail").await.unwrap();
+
+        assert_eq!(status.id, "task-fail");
+        assert_eq!(status.status, "failed");
     }
 }
