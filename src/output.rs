@@ -339,7 +339,7 @@ pub fn format_transactions(transactions: &[Transaction], format: OutputFormat) -
 
                 // Pad before coloring to avoid ANSI codes breaking alignment
                 let amount_raw = format!("€{}", t.amount);
-                let amount_padded = format!("{:<10}", amount_raw);
+                let amount_padded = format!("{amount_raw:<10}");
                 let amount_str = if t.completed.is_some() {
                     amount_padded.green().to_string()
                 } else {
