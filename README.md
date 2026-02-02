@@ -27,8 +27,6 @@ Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust
 
 **Supported DNS record types:** A, AAAA, ANAME, CAA, CNAME, DS, Dynamic, HTTPS, MX, NAPTR, NS, PTR, SRV, SSHFP, SVCB, TLSA, TXT
 
-All commands support `--json` for scripting.
-
 ## Why This CLI?
 
 **Fully synchronous** - No async runtime. Uses [bitreq](https://crates.io/crates/bitreq) for HTTP, resulting in fast compile times and a small binary (~2.3MB stripped).
