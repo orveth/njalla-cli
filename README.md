@@ -1,5 +1,8 @@
 # njalla-cli
 
+[![CI](https://github.com/orveth/njalla-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/orveth/njalla-cli/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust.
 
 > **Disclaimer:** This is an unofficial project and is not affiliated with or endorsed by Njalla. Use at your own risk. Always verify important operations through the official Njalla web interface.
