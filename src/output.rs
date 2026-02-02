@@ -1,7 +1,7 @@
 //! Output formatting for CLI commands.
 
 use crate::error::Result;
-use crate::types::{Domain, MarketDomain, Payment, Record, Transaction, ValidationResult, WalletBalance};
+use crate::types::{Domain, MarketDomain, Payment, Record, Transaction, WalletBalance};
 
 /// Format a single DNS record for output.
 ///
@@ -53,16 +53,6 @@ pub fn format_domain_status(
         "dns_records": records,
     });
     Ok(serde_json::to_string_pretty(&result)?)
-}
-
-/// Format validation results.
-///
-/// # Errors
-///
-/// Returns an error if JSON serialization fails.
-#[allow(dead_code)]
-pub fn format_validation(result: &ValidationResult) -> Result<String> {
-    Ok(serde_json::to_string_pretty(result)?)
 }
 
 /// Format wallet balance.

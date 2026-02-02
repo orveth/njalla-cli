@@ -95,14 +95,6 @@ enum Commands {
         dns: bool,
     },
 
-    /// Validate that a domain was properly registered.
-    ///
-    /// Checks: exists in account, status is active, has expiry, DNS accessible.
-    Validate {
-        /// Domain name to validate.
-        domain: String,
-    },
-
     /// Show or initialize configuration.
     Config {
         /// Initialize config file if it doesn't exist.
@@ -289,7 +281,6 @@ fn run() -> error::Result<()> {
             timeout,
         } => commands::register::run(&domain, years, confirm, wait, timeout, cli.debug),
         Commands::Status { domain, dns } => commands::status::run(&domain, dns, cli.debug),
-        Commands::Validate { domain } => commands::validate::run(&domain, cli.debug),
         Commands::Config { init } => run_config(init),
         Commands::Dns { command } => match command {
             DnsCommands::List { domain } => commands::dns::run_list(&domain, cli.debug),

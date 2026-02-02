@@ -31,9 +31,6 @@ pub enum NjallaError {
     /// JSON parsing failed.
     Parse(serde_json::Error),
 
-    /// Command not yet implemented.
-    NotImplemented(String),
-
     /// Configuration error.
     Config {
         /// Error message.
@@ -56,7 +53,6 @@ impl fmt::Display for NjallaError {
                 timeout_secs,
             } => write!(f, "Registration timeout for {domain} after {timeout_secs}s"),
             Self::Parse(e) => write!(f, "Failed to parse response: {e}"),
-            Self::NotImplemented(s) => write!(f, "Not implemented: {s}"),
             Self::Config { message } => write!(f, "Config error: {message}"),
         }
     }

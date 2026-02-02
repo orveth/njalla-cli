@@ -407,53 +407,6 @@ pub struct RegisterResult {
     pub task: String,
 }
 
-// ============================================================================
-// Validation Types
-// ============================================================================
-
-/// Result of domain registration validation.
-#[derive(Debug, Serialize)]
-#[allow(dead_code, clippy::struct_excessive_bools)]
-pub struct ValidationResult {
-    /// Domain being validated.
-    pub domain: String,
-
-    /// Overall validation passed.
-    pub valid: bool,
-
-    /// Individual check results.
-    pub checks: ValidationChecks,
-
-    /// Domain info if available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub domain_info: Option<Domain>,
-
-    /// DNS records if available.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub dns_records: Option<Vec<Record>>,
-
-    /// Error message if validation failed.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub error: Option<String>,
-}
-
-/// Individual validation checks.
-#[derive(Debug, Serialize)]
-#[allow(dead_code, clippy::struct_excessive_bools)]
-pub struct ValidationChecks {
-    /// Domain exists in account.
-    pub exists: bool,
-
-    /// Domain status is "active".
-    pub status_active: bool,
-
-    /// Domain has an expiry date.
-    pub has_expiry: bool,
-
-    /// DNS records are accessible.
-    pub dns_accessible: bool,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
