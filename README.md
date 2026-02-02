@@ -9,11 +9,25 @@ Privacy-first domain management CLI for [Njalla](https://njal.la), built in Rust
 
 ## Features
 
-- List and manage domains
-- Search and register domains
-- Manage DNS records
-- Wallet balance and payments (BTC only)
-- JSON output for scripting
+| Category | Command | Description |
+|----------|---------|-------------|
+| **Domains** | `domains` | List all domains in your account |
+| | `status <domain>` | Get domain details |
+| | `status <domain> --dns` | Get domain details with DNS records |
+| | `search <query>` | Search for available domains |
+| | `register <domain>` | Register a new domain |
+| **DNS** | `dns list <domain>` | List all DNS records |
+| | `dns add <domain>` | Add a DNS record |
+| | `dns edit <domain>` | Edit an existing record |
+| | `dns remove <domain>` | Remove a DNS record |
+| **Wallet** | `wallet balance` | Check wallet balance |
+| | `wallet add-payment` | Add funds (Bitcoin) |
+| | `wallet get-payment <id>` | Check payment status |
+| | `wallet transactions` | List recent transactions |
+
+**Supported DNS record types:** A, AAAA, ANAME, CAA, CNAME, DS, Dynamic, HTTPS, MX, NAPTR, NS, PTR, SRV, SSHFP, SVCB, TLSA, TXT
+
+All commands support `--json` for scripting.
 
 ## Why This CLI?
 
