@@ -88,7 +88,7 @@ impl NjallaClient {
         };
 
         if self.debug {
-            eprintln!("[DEBUG] Request: {} {:?}", method, params);
+            eprintln!("[DEBUG] Request: {method} {params:?}");
         }
 
         let response = self
@@ -102,7 +102,7 @@ impl NjallaClient {
         let response_text = response.text().await?;
 
         if self.debug {
-            eprintln!("[DEBUG] Response: {}", response_text);
+            eprintln!("[DEBUG] Response: {response_text}");
         }
 
         let api_response: ApiResponse<T> = serde_json::from_str(&response_text)?;
